@@ -22,6 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "../MyLibs/MyFunctions/MyFunctions.h"
 
 /* USER CODE END Includes */
 
@@ -45,19 +46,24 @@ I2C_HandleTypeDef hi2c1;
 SPI_HandleTypeDef hspi1;
 
 UART_HandleTypeDef huart1;
+DMA_HandleTypeDef hdma_usart1_rx;
 
 osThreadId measurementTaskHandle;
 osThreadId recordingTaskHandle;
 osThreadId receptionTaskHandle;
 osThreadId sendingTaskHandle;
+osMessageQId usartReceptionQueueHandle;
 osSemaphoreId binarySemaphoreUARTHandle;
 /* USER CODE BEGIN PV */
+
+uint8_t Rx_data[UART_MAX_RECEIVE_DATA];
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART1_UART_Init(void);
@@ -103,6 +109,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_I2C1_Init();
   MX_SPI1_Init();
   MX_USART1_UART_Init();
@@ -126,6 +133,11 @@ int main(void)
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
+
+  /* Create the queue(s) */
+  /* definition and creation of usartReceptionQueue */
+  osMessageQDef(usartReceptionQueue, 16, uint8_t);
+  usartReceptionQueueHandle = osMessageCreate(osMessageQ(usartReceptionQueue), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -307,7 +319,26 @@ static void MX_USART1_UART_Init(void)
   }
   /* USER CODE BEGIN USART1_Init 2 */
 
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, Rx_data, UART_MAX_RECEIVE_DATA);
+  __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+
   /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
 
 }
 
@@ -350,6 +381,16 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size){
+    if (huart->Instance == USART1){
+    	if(StoreUSARTData(Rx_data, size)){
+        	osSemaphoreRelease(binarySemaphoreUARTHandle);
+    	}
+		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, Rx_data, UART_MAX_RECEIVE_DATA);
+		__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+    }
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_measurementFunction */
@@ -365,7 +406,8 @@ void measurementFunction(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osDelay(1000);
+    HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
   }
   /* USER CODE END 5 */
 }
@@ -401,7 +443,12 @@ void receptionFunction(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osSemaphoreWait(binarySemaphoreUARTHandle, osWaitForever);
+    uint16_t measureAsk = 0;
+    if(DecodeReceivedData(&measureAsk)){
+    	PrintString(huart1, "Hola mundo\r\n", sizeof("Hola mundo\r\n"));
+    	PrintIntFormat(huart1, measureAsk);
+    }
   }
   /* USER CODE END receptionFunction */
 }
