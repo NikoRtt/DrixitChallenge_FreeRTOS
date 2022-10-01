@@ -17,6 +17,7 @@ RM := rm -rf
 -include Core/Startup/subdir.mk
 -include Core/Src/subdir.mk
 -include Core/MyLibs/MyFunctions/subdir.mk
+-include Core/MyLibs/LIS3MDL/subdir.mk
 -include objects.mk
 
 ifneq ($(MAKECMDGOALS),clean)

@@ -21,6 +21,7 @@ C_DEPS :=
 
 # Every subdirectory with source files must be described here
 SUBDIRS := \
+Core/MyLibs/LIS3MDL \
 Core/MyLibs/MyFunctions \
 Core/Src \
 Core/Startup \

@@ -1,3 +1,4 @@
+"./Core/MyLibs/LIS3MDL/LIS3MDL.o"
 "./Core/MyLibs/MyFunctions/MyFunctions.o"
 "./Core/Src/freertos.o"
 "./Core/Src/main.o"

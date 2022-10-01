@@ -1,0 +1,7 @@
+../Core/MyLibs/LIS3MDL/LIS3MDL.c:17:9:lis3mdl_Init	24	static
+../Core/MyLibs/LIS3MDL/LIS3MDL.c:92:19:lis3mdl_DataReady	24	static
+../Core/MyLibs/LIS3MDL/LIS3MDL.c:116:19:lis3mdl_ReadMagnetometer	32	static
+../Core/MyLibs/LIS3MDL/LIS3MDL.c:170:19:lis3mdl_ReadTemperature	24	static
+../Core/MyLibs/LIS3MDL/LIS3MDL.c:194:19:lis3mdl_ReadRegister	40	static
+../Core/MyLibs/LIS3MDL/LIS3MDL.c:201:19:lis3mdl_WriteRegister	40	static
+../Core/MyLibs/LIS3MDL/LIS3MDL.c:209:19:lis3mdl_ReadRegisters	40	static

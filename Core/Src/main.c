@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "../MyLibs/MyFunctions/MyFunctions.h"
+#include "../MyLibs/LIS3MDL/LIS3MDL.h"
 
 /* USER CODE END Includes */
 
@@ -57,6 +58,7 @@ osSemaphoreId binarySemaphoreUARTHandle;
 /* USER CODE BEGIN PV */
 
 uint8_t Rx_data[UART_MAX_RECEIVE_DATA];
+LIS3MDL_Data_t LIS3MDL_data;
 
 /* USER CODE END PV */
 
@@ -403,12 +405,25 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size){
 void measurementFunction(void const * argument)
 {
   /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1000);
-    HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-  }
+	LIS3MDL_data.scale = LIS3MDL_SCALE_12_GAUSS;
+
+	lis3mdl_Init(&LIS3MDL_data, &hi2c1);
+
+	while(1){
+
+		osDelay(1000);
+
+		LIS3MDL_data.uid++;
+
+		if(lis3mdl_DataReady(&LIS3MDL_data)){
+
+			lis3mdl_ReadMagnetometer(&LIS3MDL_data);
+
+			lis3mdl_ReadTemperature(&LIS3MDL_data);
+
+			//Save data
+		}
+	}
   /* USER CODE END 5 */
 }
 
@@ -423,10 +438,9 @@ void recordingFunction(void const * argument)
 {
   /* USER CODE BEGIN recordingFunction */
   /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+	while(1){
+		osDelay(1);
+	}
   /* USER CODE END recordingFunction */
 }
 
@@ -441,15 +455,14 @@ void receptionFunction(void const * argument)
 {
   /* USER CODE BEGIN receptionFunction */
   /* Infinite loop */
-  for(;;)
-  {
-    osSemaphoreWait(binarySemaphoreUARTHandle, osWaitForever);
-    uint16_t measureAsk = 0;
-    if(DecodeReceivedData(&measureAsk)){
-    	PrintString(huart1, "Hola mundo\r\n", sizeof("Hola mundo\r\n"));
-    	PrintIntFormat(huart1, measureAsk);
-    }
-  }
+	while(1){
+		osSemaphoreWait(binarySemaphoreUARTHandle, osWaitForever);
+		uint16_t measureAsk = 0;
+		if(DecodeReceivedData(&measureAsk)){
+			PrintString(huart1, "Hola mundo\r\n", sizeof("Hola mundo\r\n"));
+			PrintIntFormat(huart1, measureAsk);
+		}
+	}
   /* USER CODE END receptionFunction */
 }
 
@@ -464,10 +477,9 @@ void sendingFunction(void const * argument)
 {
   /* USER CODE BEGIN sendingFunction */
   /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+	while(1){
+		osDelay(1);
+	}
   /* USER CODE END sendingFunction */
 }
 

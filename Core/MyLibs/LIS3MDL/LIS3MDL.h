@@ -11,6 +11,8 @@
 
 /*==================[inclusions]=============================================*/
 
+#include "stm32f1xx_hal.h"
+
 /*==================[cplusplus]==============================================*/
 
 #ifdef __cplusplus
@@ -52,10 +54,10 @@ extern "C" {
 #define LIS3MDL_REG_CTL_1_TEMP_EN  0b10000000
 #define LIS3MDL_REG_CTL_1_TEMP_DI  0b00000000
 
-#define LIS3MDL_SCALE_4_GAUSS      0x00
-#define LIS3MDL_SCALE_8_GAUSS      0x20
-#define LIS3MDL_SCALE_12_GAUSS     0x40
-#define LIS3MDL_SCALE_16_GAUSS     0x60
+#define LIS3MDL_SCALE_4_GAUSS      0b00
+#define LIS3MDL_SCALE_8_GAUSS      0b01
+#define LIS3MDL_SCALE_12_GAUSS     0b10
+#define LIS3MDL_SCALE_16_GAUSS     0b11
 
 #define LIS3MDL_PERFORMANCE_LOW_POWER  	0b00
 #define LIS3MDL_PERFORMANCE_MEDIUM     	0b01
@@ -101,6 +103,8 @@ typedef struct {
 	float mag_z;
 	// Temperature data in degrees Celsius
 	float temp;
+	// Scale
+	uint8_t scale;
 } LIS3MDL_Data_t;
 
 /*==================[global variables]=======================================*/
@@ -110,10 +114,11 @@ typedef struct {
 /*==================[external functions declaration]=========================*/
 
 // Initialization
-bool_t lis3mdl_Init ( LIS3MDL_Data_t* dev, I2C_HandleTypeDef *i2cHandle );
+uint8_t lis3mdl_Init ( LIS3MDL_Data_t* dev, I2C_HandleTypeDef *i2cHandle );
 // Measurement
 HAL_StatusTypeDef lis3mdl_ReadTemperature ( LIS3MDL_Data_t* dev );
 HAL_StatusTypeDef lis3mdl_ReadMagnetometer ( LIS3MDL_Data_t* dev );
+HAL_StatusTypeDef lis3mdl_DataReady ( LIS3MDL_Data_t* dev );
 // Low level
 HAL_StatusTypeDef lis3mdl_ReadRegister( LIS3MDL_Data_t* dev, uint8_t reg, uint8_t* value );
 HAL_StatusTypeDef lis3mdl_WriteRegister( LIS3MDL_Data_t* dev, uint8_t reg, uint8_t* value );
