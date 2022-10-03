@@ -13,6 +13,8 @@
 
 #include "stm32f1xx_hal.h"
 
+#include "../MyInc/Datatypes.h"
+
 /*==================[cplusplus]==============================================*/
 
 #ifdef __cplusplus
@@ -92,7 +94,7 @@ extern "C" {
 
 typedef struct {
 	// I2C Handle
-	I2C_HandleTypeDef *i2cHandle;
+	I2C_HandleTypeDef* i2cHandle;
 	// Unique ID
     uint16_t uid;
     // Magnetometer data from axis X
@@ -107,6 +109,21 @@ typedef struct {
 	uint8_t scale;
 } LIS3MDL_Data_t;
 
+typedef struct {
+	// Unique ID
+    uint16_t uid;
+    // Magnetometer data from axis X
+	float mag_x;
+	// Magnetometer data from axis Y
+	float mag_y;
+	// Magnetometer data from axis Z
+	float mag_z;
+	// Temperature data in degrees Celsius
+	float temp;
+	// If we must read or save the data
+	bool_t readData;
+} LIS3MDL_StoreData_t;
+
 /*==================[global variables]=======================================*/
 
 /*==================[external data declaration]==============================*/
@@ -119,10 +136,7 @@ uint8_t lis3mdl_Init ( LIS3MDL_Data_t* dev, I2C_HandleTypeDef *i2cHandle );
 HAL_StatusTypeDef lis3mdl_ReadTemperature ( LIS3MDL_Data_t* dev );
 HAL_StatusTypeDef lis3mdl_ReadMagnetometer ( LIS3MDL_Data_t* dev );
 HAL_StatusTypeDef lis3mdl_DataReady ( LIS3MDL_Data_t* dev );
-// Low level
-HAL_StatusTypeDef lis3mdl_ReadRegister( LIS3MDL_Data_t* dev, uint8_t reg, uint8_t* value );
-HAL_StatusTypeDef lis3mdl_WriteRegister( LIS3MDL_Data_t* dev, uint8_t reg, uint8_t* value );
-HAL_StatusTypeDef lis3mdl_ReadRegisters( LIS3MDL_Data_t* dev, uint8_t reg, uint8_t* value, uint8_t lenght );
+LIS3MDL_StoreData_t lis3mdl_ConvertToStoreData ( LIS3MDL_Data_t* dev );
 
 /*==================[cplusplus]==============================================*/
 

@@ -27,6 +27,7 @@ Core/MyLibs/LIS3MDL/LIS3MDL.o: ../Core/MyLibs/LIS3MDL/LIS3MDL.c \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h \
  ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h \
+ ../Core/MyLibs/LIS3MDL/../MyInc/Datatypes.h \
  ../Core/MyLibs/LIS3MDL/../MyInc/Headers.h \
  ../Core/MyLibs/LIS3MDL/../MyInc/../MyInc/Datatypes.h
 ../Core/MyLibs/LIS3MDL/LIS3MDL.h:
@@ -57,5 +58,6 @@ Core/MyLibs/LIS3MDL/LIS3MDL.o: ../Core/MyLibs/LIS3MDL/LIS3MDL.c \
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_tim_ex.h:
 ../Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h:
+../Core/MyLibs/LIS3MDL/../MyInc/Datatypes.h:
 ../Core/MyLibs/LIS3MDL/../MyInc/Headers.h:
 ../Core/MyLibs/LIS3MDL/../MyInc/../MyInc/Datatypes.h:

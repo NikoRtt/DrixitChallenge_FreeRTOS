@@ -23,6 +23,7 @@ C_DEPS :=
 SUBDIRS := \
 Core/MyLibs/LIS3MDL \
 Core/MyLibs/MyFunctions \
+Core/MyLibs/W25Q80DV \
 Core/Src \
 Core/Startup \
 Drivers/STM32F1xx_HAL_Driver/Src \

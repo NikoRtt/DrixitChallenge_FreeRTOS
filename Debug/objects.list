@@ -1,5 +1,6 @@
 "./Core/MyLibs/LIS3MDL/LIS3MDL.o"
 "./Core/MyLibs/MyFunctions/MyFunctions.o"
+"./Core/MyLibs/W25Q80DV/W25Q80DV.o"
 "./Core/Src/freertos.o"
 "./Core/Src/main.o"
 "./Core/Src/stm32f1xx_hal_msp.o"

@@ -12,6 +12,15 @@
 
 /*==================[global variables]=======================================*/
 
+/*==================[internal functions declaration]=========================*/
+
+// low level functions definition
+HAL_StatusTypeDef lis3mdl_ReadRegister( LIS3MDL_Data_t* dev, uint8_t reg, uint8_t* value );
+HAL_StatusTypeDef lis3mdl_WriteRegister( LIS3MDL_Data_t* dev, uint8_t reg, uint8_t* value );
+HAL_StatusTypeDef lis3mdl_ReadRegisters( LIS3MDL_Data_t* dev, uint8_t reg, uint8_t* value, uint8_t lenght );
+
+/*==================[internal functions definition]==========================*/
+
 /*==================[Initialization functions definition]====================*/
 
 uint8_t lis3mdl_Init ( LIS3MDL_Data_t* dev, I2C_HandleTypeDef *i2cHandle ){
@@ -187,6 +196,28 @@ HAL_StatusTypeDef lis3mdl_ReadTemperature ( LIS3MDL_Data_t* dev ){
 	}
 
 	return status;
+}
+
+
+/*************************************************************/
+
+LIS3MDL_StoreData_t lis3mdl_ConvertToStoreData ( LIS3MDL_Data_t* dev ){
+
+	LIS3MDL_StoreData_t newData;
+
+	newData.mag_x = dev->mag_x;
+
+	newData.mag_y = dev->mag_y;
+
+	newData.mag_z = dev->mag_z;
+
+	newData.temp = dev->temp;
+
+	newData.uid = dev->uid;
+
+	newData.readData = FALSE;
+
+	return newData;
 }
 
 /*==================[low level functions definition]=========================*/

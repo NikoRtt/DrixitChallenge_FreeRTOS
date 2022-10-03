@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "../MyLibs/MyFunctions/MyFunctions.h"
 #include "../MyLibs/LIS3MDL/LIS3MDL.h"
+#include "../MyLibs/W25Q80DV/W25Q80DV.h"
 
 /* USER CODE END Includes */
 
@@ -57,8 +58,10 @@ osMessageQId usartReceptionQueueHandle;
 osSemaphoreId binarySemaphoreUARTHandle;
 /* USER CODE BEGIN PV */
 
+xQueueHandle queueDataProcessing, queueUsartReception;
 uint8_t Rx_data[UART_MAX_RECEIVE_DATA];
 LIS3MDL_Data_t LIS3MDL_data;
+W25Q80DV_Data_t W25Q80DV_data;
 
 /* USER CODE END PV */
 
@@ -143,6 +146,8 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+  queueDataProcessing = xQueueCreate(16, sizeof(LIS3MDL_StoreData_t));
+  queueUsartReception = xQueueCreate(16, sizeof(uint16_t));
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -276,7 +281,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_HARD_OUTPUT;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
   hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
@@ -362,12 +367,22 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI1_NCS_Pin, GPIO_PIN_SET);
+
   /*Configure GPIO pin : LED_Pin */
   GPIO_InitStruct.Pin = LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : SPI1_NCS_Pin */
+  GPIO_InitStruct.Pin = SPI1_NCS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(SPI1_NCS_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : BUTTON_Pin */
   GPIO_InitStruct.Pin = BUTTON_Pin;
@@ -409,6 +424,8 @@ void measurementFunction(void const * argument)
 
 	lis3mdl_Init(&LIS3MDL_data, &hi2c1);
 
+	LIS3MDL_StoreData_t dataToSend;
+
 	while(1){
 
 		osDelay(1000);
@@ -421,7 +438,9 @@ void measurementFunction(void const * argument)
 
 			lis3mdl_ReadTemperature(&LIS3MDL_data);
 
-			//Save data
+			dataToSend = lis3mdl_ConvertToStoreData(&LIS3MDL_data);
+
+			xQueueSend(queueDataProcessing, &dataToSend, portMAX_DELAY);
 		}
 	}
   /* USER CODE END 5 */
@@ -437,9 +456,39 @@ void measurementFunction(void const * argument)
 void recordingFunction(void const * argument)
 {
   /* USER CODE BEGIN recordingFunction */
-  /* Infinite loop */
+
+	w25q80dv_Init(&W25Q80DV_data, &hspi1, SPI1_NCS_Pin, SPI1_NCS_GPIO_Port);
+
+	// If there's no data save in the memory, we must do an erase to start using it.
+	if(w25q80dv_InitAddress(&W25Q80DV_data) == FALSE){
+
+		w25q80dv_EraseChip(&W25Q80DV_data);
+	}
+
+	LIS3MDL_StoreData_t message;
+
+	uint8_t* ptrMessage = (uint8_t*)&message;
+
 	while(1){
-		osDelay(1);
+
+		xQueueReceive(queueDataProcessing, &message, portMAX_DELAY);
+
+		if(message.readData == FALSE){
+			// Check the address
+
+			// We must save the data in memory
+			w25q80dv_WriteBytes(&W25Q80DV_data, ptrMessage, sizeof(LIS3MDL_StoreData_t));
+			// Update the address
+
+		}
+
+		else {
+			// First we must get the address of that data id
+
+			// We must read the data in memory of the address
+			w25q80dv_ReadBytes(&W25Q80DV_data, ptrMessage, sizeof(LIS3MDL_StoreData_t));
+
+		}
 	}
   /* USER CODE END recordingFunction */
 }
