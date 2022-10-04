@@ -6,14 +6,20 @@
 *
 *****************************************************************************/
 
+/*==================[inclusions]=============================================*/
+
 #include "main.h"
 #include "cmsis_os.h"
 #include "../MyLibs/MyFunctions/MyFunctions.h"
 #include "../MyLibs/LIS3MDL/LIS3MDL.h"
 #include "../MyLibs/W25Q80DV/W25Q80DV.h"
 
+/*==================[definitions]============================================*/
+
 #define INIT_DATA_ADDRESS (W25Q80DV_FIRST_PAGE_ADDRESS + W25Q80DV_INITIALIZE_SIZE)
 #define INIT_DATA_SIZE  2
+
+/*==================[global variables]======================================*/
 
 I2C_HandleTypeDef hi2c1;
 SPI_HandleTypeDef hspi1;
@@ -34,6 +40,8 @@ LIS3MDL_Data_t LIS3MDL_data;
 LIS3MDL_StoreData_t LIS3MDL_storedata;
 W25Q80DV_Data_t W25Q80DV_data;
 
+/*==================[internal functions definition]==========================*/
+
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
@@ -45,10 +53,8 @@ void recordingFunction(void const * argument);
 void receptionFunction(void const * argument);
 void sendingFunction(void const * argument);
 
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
+/*==================[main function]==========================================*/
+
 int main(void){
 
 	// MCU Configuration
@@ -104,12 +110,12 @@ int main(void){
 	/* Create the thread(s) */
 	osThreadDef(sensorTask, measurementFunction, osPriorityNormal, 0, 128);
 	sensorTaskHandle = osThreadCreate(osThread(sensorTask), NULL);
-	osThreadDef(memoryTask, recordingFunction, osPriorityNormal, 0, 128);
-	memoryTaskHandle = osThreadCreate(osThread(memoryTask), NULL);
 	osThreadDef(receiveTask, receptionFunction, osPriorityNormal, 0, 128);
 	receiveTaskHandle = osThreadCreate(osThread(receiveTask), NULL);
 	osThreadDef(sendTask, sendingFunction, osPriorityNormal, 0, 128);
 	sendTaskHandle = osThreadCreate(osThread(sendTask), NULL);
+	osThreadDef(memoryTask, recordingFunction, osPriorityNormal, 0, 128);
+	memoryTaskHandle = osThreadCreate(osThread(memoryTask), NULL);
 
 	PrintString(huart1, "Starting FreeRTOS System\r\n", sizeof("Starting FreeRTOS System\r\n"));
 
@@ -120,10 +126,12 @@ int main(void){
 	while (1){}
 }
 
-/**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+/*==================[internal functions definition]==========================*/
+
+//*************************************************************
+//* @brief System Clock Configuration
+//* @retval None
+//*************************************************************
 void SystemClock_Config(void){
   
 	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -155,11 +163,11 @@ void SystemClock_Config(void){
 	}
 }
 
-/**
-  * @brief I2C1 Initialization Function
-  * @param None
-  * @retval None
-  */
+//*************************************************************
+//* @brief I2C1 Initialization Function
+//* @param None
+//* @retval None
+//*************************************************************
 static void MX_I2C1_Init(void){
 
 	hi2c1.Instance = I2C1;
@@ -176,11 +184,11 @@ static void MX_I2C1_Init(void){
 	}
 }
 
-/**
-  * @brief SPI1 Initialization Function
-  * @param None
-  * @retval None
-  */
+//*************************************************************
+//* @brief SPI1 Initialization Function
+//* @param None
+//* @retval None
+//*************************************************************
 static void MX_SPI1_Init(void){
 
 	/* SPI1 parameter configuration*/
@@ -201,11 +209,11 @@ static void MX_SPI1_Init(void){
 	}
 }
 
-/**
-  * @brief USART1 Initialization Function
-  * @param None
-  * @retval None
-  */
+//*************************************************************
+//* @brief USART1 Initialization Function
+//* @param None
+//* @retval None
+//*************************************************************
 static void MX_USART1_UART_Init(void){
 
 	huart1.Instance = USART1;
@@ -223,9 +231,9 @@ static void MX_USART1_UART_Init(void){
 	__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
 }
 
-/**
-  * Enable DMA controller clock
-  */
+//*************************************************************
+//* Enable DMA controller clock
+//*************************************************************
 static void MX_DMA_Init(void){
 
 	/* DMA controller clock enable */
@@ -237,11 +245,11 @@ static void MX_DMA_Init(void){
 	HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
 }
 
-/**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
+//*************************************************************
+//* @brief GPIO Initialization Function
+//* @param None
+//* @retval None
+//*************************************************************
 static void MX_GPIO_Init(void){
 	GPIO_InitTypeDef GPIO_InitStruct = {0};
 
@@ -282,6 +290,9 @@ static void MX_GPIO_Init(void){
 	HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
 
+//*************************************************************
+//*Callback for the interrupt reception on the RxPin of usart
+//*************************************************************
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size){
   
 	if (huart->Instance == USART1){
@@ -297,6 +308,9 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size){
 	}
 }
 
+//*************************************************************
+//*Callback for the button interruption
+//*************************************************************
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	
 	HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
@@ -315,11 +329,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
 
-/**
-  * @brief  Function implementing the sensorTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
+//*************************************************************
+//* @brief  Function implementing the sensorTask thread.
+//* @param  argument: Not used
+//* @retval None
+//*************************************************************
 void measurementFunction(void const * argument){
 
 	LIS3MDL_data.scale = LIS3MDL_SCALE_12_GAUSS;
@@ -354,11 +368,11 @@ void measurementFunction(void const * argument){
 	}
 }
 
-/**
-* @brief Function implementing the memoryTask thread.
-* @param argument: Not used
-* @retval None
-*/
+//*************************************************************
+//* @brief Function implementing the memoryTask thread.
+//* @param argument: Not used
+//* @retval None
+//*************************************************************
 void recordingFunction(void const * argument){
 
 	LIS3MDL_StoreData_t message;
@@ -423,11 +437,11 @@ void recordingFunction(void const * argument){
 	}
 }
 
-/**
-* @brief Function implementing the receiveTask thread.
-* @param argument: Not used
-* @retval None
-*/
+//*************************************************************
+//* @brief Function implementing the receiveTask thread.
+//* @param argument: Not used
+//* @retval None
+//*************************************************************
 void receptionFunction(void const * argument){
 
 	LIS3MDL_StoreData_t message;
@@ -456,11 +470,11 @@ void receptionFunction(void const * argument){
 	}
 }
 
-/**
-* @brief Function implementing the sendTask thread.
-* @param argument: Not used
-* @retval None
-*/
+//*************************************************************
+//* @brief Function implementing the sendTask thread.
+//* @param argument: Not used
+//* @retval None
+//*************************************************************
 void sendingFunction(void const * argument){
 
 	LIS3MDL_StoreData_t message;
@@ -532,24 +546,24 @@ void sendingFunction(void const * argument){
 	}
 }
 
-/**
-  * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM1 interrupt took place, inside
-  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
-  * a global variable "uwTick" used as application time base.
-  * @param  htim : TIM handle
-  * @retval None
-  */
+//*************************************************************
+//* @brief  Period elapsed callback in non blocking mode
+//* @note   This function is called  when TIM1 interrupt took place, inside
+//* HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+//* a global variable "uwTick" used as application time base.
+//* @param  htim : TIM handle
+//* @retval None
+//*************************************************************
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	if (htim->Instance == TIM1) {
 		HAL_IncTick();
 	}
 }
 
-/**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+//*************************************************************
+//* @brief  This function is executed in case of error occurrence.
+//* @retval None
+//*************************************************************
 void Error_Handler(void){
 	__disable_irq();
 	while (1){}
