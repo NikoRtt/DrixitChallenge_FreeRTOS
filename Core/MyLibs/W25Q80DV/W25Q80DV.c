@@ -75,6 +75,14 @@ HAL_StatusTypeDef w25q80dv_SPIWrite( W25Q80DV_Data_t* dev, uint8_t* data, uint8_
 
 /*==================[Instruction functions definition]=======================*/
 
+/**
+ * @brief Instruction to read the ID of the memory. This ID is mention in the
+ *  datasheet of the memory and is used to check where we are working with the
+ *  correct memory or not.
+ * 
+ * @param dev Structure to receive information.
+ * @return bool_t TRUE if it's the W25Q80DV Winbond memory.
+ */
 bool_t w25q80dv_InstructionReadID( W25Q80DV_Data_t* dev ){
 
 	uint8_t instruction[] = {W25Q80DV_DEVID, W25Q80DV_DUMMY_BYTE, W25Q80DV_DUMMY_BYTE, W25Q80DV_DUMMY_BYTE};
@@ -96,6 +104,14 @@ bool_t w25q80dv_InstructionReadID( W25Q80DV_Data_t* dev ){
 
 /*************************************************************/
 
+/**
+ * @brief The Write Enable instruction sets the Write Enable 
+ * Latch (WEL) bit in the Status Register to a 1. This must be 
+ * done every time before a write or erase instruction.
+ * 
+ * @param dev Structure to receive information.
+ * @return HAL_StatusTypeDef 
+ */
 HAL_StatusTypeDef w25q80dv_InstructionWriteEnable( W25Q80DV_Data_t* dev ){
 
 	uint8_t instruction = W25Q80DV_WRITE_ENABLE;
@@ -105,6 +121,13 @@ HAL_StatusTypeDef w25q80dv_InstructionWriteEnable( W25Q80DV_Data_t* dev ){
 
 /*************************************************************/
 
+/**
+ * @brief The Write Enable instruction resets the Write Enable 
+ * Latch (WEL) bit in the Status Register to a 0.
+ * 
+ * @param dev Structure to receive information.
+ * @return HAL_StatusTypeDef 
+ */
 HAL_StatusTypeDef w25q80dv_InstructionWriteDisable( W25Q80DV_Data_t* dev ){
 
 	uint8_t instruction = W25Q80DV_WRITE_DISABLE;
@@ -114,6 +137,15 @@ HAL_StatusTypeDef w25q80dv_InstructionWriteDisable( W25Q80DV_Data_t* dev ){
 
 /*************************************************************/
 
+/**
+ * @brief The Read Status Register instructions allow the 8-bit
+ *  Status Registers to be read.
+ * 
+ * @param dev Structure to receive information.
+ * @param selectRegister The register requiered, it can be 1 or
+ * 2 for this memory.
+ * @return uint8_t 
+ */
 uint8_t w25q80dv_InstructionReadStatusRegister( W25Q80DV_Data_t* dev, uint8_t selectRegister){
 
 	uint8_t instruction;
@@ -139,6 +171,12 @@ uint8_t w25q80dv_InstructionReadStatusRegister( W25Q80DV_Data_t* dev, uint8_t se
 
 /*************************************************************/
 
+/**
+ * @brief Reads the status register to know when the write 
+ * finish. It's block function.
+ * 
+ * @param dev Structure to receive information.
+ */
 void w25q80dv_InstructionWaitForWriteEnd( W25Q80DV_Data_t* dev ){
 
 	uint8_t statusRegister1;
@@ -153,6 +191,15 @@ void w25q80dv_InstructionWaitForWriteEnd( W25Q80DV_Data_t* dev ){
 
 /*==================[Initialization functions definition]====================*/
 
+/**
+ * @brief Initialize the memory the a correct operation.
+ * 
+ * @param dev Structure to assign information.
+ * @param spi The handler for the communication.
+ * @param pin The pin of the /CS (Chip Select).
+ * @param port The port of the /CS (Chip Select).
+ * @return bool_t TRUE is everything is fine.
+ */
 bool_t w25q80dv_Init( W25Q80DV_Data_t* dev, SPI_HandleTypeDef* spi, uint16_t pin, GPIO_TypeDef* port ){
 
 	dev->W25Q80DV_SPI = spi;
@@ -185,6 +232,17 @@ bool_t w25q80dv_Init( W25Q80DV_Data_t* dev, SPI_HandleTypeDef* spi, uint16_t pin
 
 /*************************************************************/
 
+/**
+ * @brief This function is used to find out is the memory has 
+ * information previously saved or not. This is done by reading
+ * the first 4 bytes of the memory and comparing them with the
+ * initialization word. If there's no match, a chip erase 
+ * operation must be done to the correct functioning of the 
+ * memory.
+ * 
+ * @param dev Structure to receive information.
+ * @return bool_t TRUE is the memroy has been initialize.
+ */
 bool_t w25q80dv_isMemInit( W25Q80DV_Data_t* dev ){
 
 	uint8_t data[W25Q80DV_INITIALIZE_SIZE];
@@ -207,6 +265,11 @@ bool_t w25q80dv_isMemInit( W25Q80DV_Data_t* dev ){
 
 /*==================[Basic functions definition]============================*/
 
+/**
+ * @brief A chip erase operation that cleans all the memory.
+ * 
+ * @param dev Structure to receive information.
+ */
 void w25q80dv_EraseChip( W25Q80DV_Data_t* dev ){
 
 	w25q80dv_InstructionWaitForWriteEnd(dev);
@@ -222,6 +285,18 @@ void w25q80dv_EraseChip( W25Q80DV_Data_t* dev ){
 
 /*************************************************************/
 
+/**
+ * @brief This function is used to write bytes in a single page
+ * of the memory(max. 256 bytes), starting at the address 
+ * received in the structure. Then it waits for a maximum 
+ * period of time that the datasheet ensures that the memory
+ * will be written. The next address to write is automatically 
+ * loaded in the structure.
+ * 
+ * @param dev Structure to receive information.
+ * @param data The information to write in the memory.
+ * @param dataLenght Amount of bytes to be written.
+ */
 void w25q80dv_WriteBytesInPage( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght ){
 
 	w25q80dv_InstructionWaitForWriteEnd(dev);
@@ -252,6 +327,22 @@ void w25q80dv_WriteBytesInPage( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dat
 
 /*************************************************************/
 
+/**
+ * @brief This function is used to write bytes in a continuas 
+ * way using as most two pages, starting at the address 
+ * received in the structure. This is posible checking the 
+ * starting address, the lenght of the data and where the write 
+ * process will end to know if the write operation should be 
+ * split or not. This must be done this way because two pages 
+ * cannot be written at the same time, if the amount of data is 
+ * longer than a page, that page will be overwritten. The next 
+ * address to write is automatically loaded in the structure.
+ * 
+ * @param dev Structure to receive information.
+ * @param data The information to write in the memory.
+ * @param dataLenght Amount of bytes to be written.
+ * @return bool_t FALSE memory full.
+ */
 bool_t w25q80dv_WriteBytesInSequence( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght ){
 
 	bool_t retVal = FALSE;
@@ -284,6 +375,18 @@ bool_t w25q80dv_WriteBytesInSequence( W25Q80DV_Data_t* dev, uint8_t* data, uint8
 
 /*************************************************************/
 
+/**
+ * @brief This function is used to write bytes in a single page
+ * of the memory(max. 256 bytes), starting at the address 
+ * received in the address parameter. This function has to be 
+ * used carefully so as not to try to write two pages at the 
+ * same time. (User caution!)
+ * 
+ * @param dev Structure to receive information.
+ * @param address Starting address to write.
+ * @param data The information to write in the memory.
+ * @param dataLenght Amount of bytes to be written.
+ */
 void w25q80dv_WriteBytesInAddress( W25Q80DV_Data_t* dev, uint32_t address, uint8_t* data, uint8_t dataLenght ){
 
 	w25q80dv_InstructionWaitForWriteEnd(dev);
@@ -309,6 +412,14 @@ void w25q80dv_WriteBytesInAddress( W25Q80DV_Data_t* dev, uint32_t address, uint8
 
 /*************************************************************/
 
+/**
+ * @brief This function is used to read bytes of the memory, 
+ * starting at the address received in the structure.
+ * 
+ * @param dev Structure to receive information.
+ * @param data The information read in the memory.
+ * @param dataLenght Amount of bytes to be read.
+ */
 void w25q80dv_ReadBytesInSequence( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght ){
 
 	uint8_t instruction[4]; // Instruction + 3 byte Address
@@ -326,6 +437,15 @@ void w25q80dv_ReadBytesInSequence( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t 
 
 /*************************************************************/
 
+/**
+ * @brief This function is used to read bytes in a specific 
+ * address of the memory.
+ * 
+ * @param dev Structure to receive information.
+ * @param address Starting address to read.
+ * @param data The information read in the memory.
+ * @param dataLenght Amount of bytes to be read.
+ */
 void w25q80dv_ReadBytesInAddress( W25Q80DV_Data_t* dev, uint32_t address, uint8_t* data, uint8_t dataLenght ){
 
 	uint8_t instruction[4]; // Instruction + 3 byte Address
@@ -343,6 +463,18 @@ void w25q80dv_ReadBytesInAddress( W25Q80DV_Data_t* dev, uint32_t address, uint8_
 
 /*************************************************************/
 
+/**
+ * @brief Function used to know if a page or more than one page
+ * is going to be written based on the length of the data and 
+ * the starting address received in the structure.
+ * 
+ * @param dev Structure to receive information.
+ * @param dataLenght Amount of bytes to be written.
+ * @param splitDataLenght Sero if the write operation will be 
+ * in a single page, or an amount of bytes that should be 
+ * written in the previously page.
+ * @return bool_t FALSE memory full.
+ */
 bool_t w25q80dv_AddressToWrite( W25Q80DV_Data_t* dev, uint8_t dataLenght, uint8_t* splitDataLenght ){
 
 	bool_t retVal = FALSE;

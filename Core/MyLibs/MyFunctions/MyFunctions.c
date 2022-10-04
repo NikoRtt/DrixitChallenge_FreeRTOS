@@ -99,7 +99,7 @@ bool_t DecodeReceivedData( uint16_t* NumberReceived ){
 		retVal = TRUE;
 	}
 
-	return retVal; //si no recibi nada valido, vuelve por FALSE
+	return retVal;
 }
 
 /*************************************************************/
@@ -156,7 +156,7 @@ uint16_t floatToString( float number, char* String, uint8_t afterpoint ){
 
     if(afterpoint > 0){
 
-    	if(aux < 0){ point++; } //Sumo un lugar para que entre el menos en el string
+    	if(aux < 0){ point++; }
 
         while(aux != 0){
 
@@ -177,7 +177,7 @@ uint16_t floatToString( float number, char* String, uint8_t afterpoint ){
 
             ipart = (int32_t)(fpart*10);
 
-            if(ipart == 0){  point++; strNumber[point] = '0'; } // Si el primer decimal despues de la coma es 0 lo cargo a mano.
+            if(ipart == 0){  point++; strNumber[point] = '0'; }
 
             while(aux != afterpoint){
 
@@ -194,9 +194,9 @@ uint16_t floatToString( float number, char* String, uint8_t afterpoint ){
         }
     }
 
-    memcpy(String, strNumber, (point + 1 + aux + 1)); //enteros + punto + decimales + fin de string
+    memcpy(String, strNumber, (point + 1 + aux + 1));
 
-    return (point + 1 + aux + 1);//enteros + punto + decimales + fin de string
+    return (point + 1 + aux + 1);
 }
 
 /*==================[end of file]============================================*/

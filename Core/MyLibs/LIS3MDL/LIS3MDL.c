@@ -23,6 +23,15 @@ HAL_StatusTypeDef lis3mdl_ReadRegisters( LIS3MDL_Data_t* dev, uint8_t reg, uint8
 
 /*==================[Initialization functions definition]====================*/
 
+/**
+ * @brief Initialize the lis3mdl magnetometer with the required specifications,
+ *  in this case +/-12g, and others for the correct operation of the sensor.
+ *  Also the struct received is initialize for futher usages.
+ * @param dev Structure to assign information.
+ * @param i2cHandle 
+ * @return uint8_t The accumulated errors during the initialization. If it's 
+ * zero, everything is fine.
+ */
 uint8_t lis3mdl_Init ( LIS3MDL_Data_t* dev, I2C_HandleTypeDef *i2cHandle ){
 
 	// Set the struct parameters first
@@ -98,6 +107,12 @@ uint8_t lis3mdl_Init ( LIS3MDL_Data_t* dev, I2C_HandleTypeDef *i2cHandle ){
 
 /*==================[Measurement functions definition]=======================*/
 
+/**
+ * @brief Check if the sensor has data ready to be read.
+ * 
+ * @param dev Structure to assign information.
+ * @return HAL_StatusTypeDef 
+ */
 HAL_StatusTypeDef lis3mdl_DataReady ( LIS3MDL_Data_t* dev ){
 
 	// Variable to store the data of a register and the status of the communication
@@ -122,6 +137,13 @@ HAL_StatusTypeDef lis3mdl_DataReady ( LIS3MDL_Data_t* dev ){
 
 /*************************************************************/
 
+/**
+ * @brief Reads the axes of the sensor, the three at the same 
+ * time.
+ * 
+ * @param dev Structure to assign information.
+ * @return HAL_StatusTypeDef 
+ */
 HAL_StatusTypeDef lis3mdl_ReadMagnetometer ( LIS3MDL_Data_t* dev ){
 
 	// Variable to store the data of a register and the status of the communication
@@ -176,6 +198,12 @@ HAL_StatusTypeDef lis3mdl_ReadMagnetometer ( LIS3MDL_Data_t* dev ){
 
 /*************************************************************/
 
+/**
+ * @brief Reads the temperature of the sensor.
+ * 
+ * @param dev Structure to assign information.
+ * @return HAL_StatusTypeDef 
+ */
 HAL_StatusTypeDef lis3mdl_ReadTemperature ( LIS3MDL_Data_t* dev ){
 
 	// Variable to store the data of a register and the status of the communication
@@ -201,6 +229,14 @@ HAL_StatusTypeDef lis3mdl_ReadTemperature ( LIS3MDL_Data_t* dev ){
 
 /*************************************************************/
 
+/**
+ * @brief Converts from one struct to another.
+ * 
+ * @param dev Structure to receive information.
+ * @return LIS3MDL_StoreData_t This struct has only the vital 
+ * information of a measure, making it smaller to be saved in
+ * a memory.
+ */
 LIS3MDL_StoreData_t lis3mdl_ConvertToStoreData ( LIS3MDL_Data_t* dev ){
 
 	LIS3MDL_StoreData_t newData;
@@ -230,7 +266,6 @@ HAL_StatusTypeDef lis3mdl_ReadRegister( LIS3MDL_Data_t* dev, uint8_t reg, uint8_
 HAL_StatusTypeDef lis3mdl_WriteRegister( LIS3MDL_Data_t* dev, uint8_t reg, uint8_t* value ){
 
 	return HAL_I2C_Mem_Write(dev->i2cHandle, LIS3MDL_ADDRESS1, reg, I2C_MEMADD_SIZE_8BIT, value, 1, HAL_MAX_DELAY);
-
 }
 
 /*************************************************************/
@@ -238,8 +273,6 @@ HAL_StatusTypeDef lis3mdl_WriteRegister( LIS3MDL_Data_t* dev, uint8_t reg, uint8
 HAL_StatusTypeDef lis3mdl_ReadRegisters( LIS3MDL_Data_t* dev, uint8_t reg, uint8_t* value, uint8_t lenght ){
 
 	return HAL_I2C_Mem_Read(dev->i2cHandle, LIS3MDL_ADDRESS1, reg, I2C_MEMADD_SIZE_8BIT, value, lenght, HAL_MAX_DELAY);
-
 }
-
 
 /*==================[end of file]============================================*/

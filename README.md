@@ -1,8 +1,8 @@
 # DrixitChallenge_FreeRTOS
 
 ## Characteristics
-The project is based on the STM32F103C8T6, known as "blue pill". It's an Arm® 32-bit Cortex®-M3 MCU with 64KB Flash and it's configured to operate at 72MHz.
 
+The project is based on the STM32F103C8T6, known as "blue pill". It is a 32-bit Arm® Cortex®-M3 MCU with 64KB of Flash, configured to operate at 72MHz and programmed with the STM32CubeIDE software using FreeRTOS as a base.
 
 ## Project organization
 

@@ -33,7 +33,7 @@ osThreadId sendTaskHandle;
 
 osSemaphoreId binarySemaphoreUARTHandle;
 
-xQueueHandle queueDataProcessing, queueUsartReception, queueUsartSender;
+xQueueHandle queueDataProcessing, queueUsartSender;
 
 uint8_t Rx_data[UART_MAX_RECEIVE_DATA];
 LIS3MDL_Data_t LIS3MDL_data;
@@ -104,7 +104,6 @@ int main(void){
 	
 	/* Create the queue(s) */
 	queueDataProcessing = xQueueCreate(16, sizeof(LIS3MDL_StoreData_t));
-	queueUsartReception = xQueueCreate(16, sizeof(uint16_t));
 	queueUsartSender = xQueueCreate(16, sizeof(LIS3MDL_StoreData_t));
 	
 	/* Create the thread(s) */
@@ -132,6 +131,7 @@ int main(void){
 //* @brief System Clock Configuration
 //* @retval None
 //*************************************************************
+
 void SystemClock_Config(void){
   
 	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -168,6 +168,7 @@ void SystemClock_Config(void){
 //* @param None
 //* @retval None
 //*************************************************************
+
 static void MX_I2C1_Init(void){
 
 	hi2c1.Instance = I2C1;
@@ -189,6 +190,7 @@ static void MX_I2C1_Init(void){
 //* @param None
 //* @retval None
 //*************************************************************
+
 static void MX_SPI1_Init(void){
 
 	/* SPI1 parameter configuration*/
@@ -214,6 +216,7 @@ static void MX_SPI1_Init(void){
 //* @param None
 //* @retval None
 //*************************************************************
+
 static void MX_USART1_UART_Init(void){
 
 	huart1.Instance = USART1;
@@ -234,6 +237,7 @@ static void MX_USART1_UART_Init(void){
 //*************************************************************
 //* Enable DMA controller clock
 //*************************************************************
+
 static void MX_DMA_Init(void){
 
 	/* DMA controller clock enable */
@@ -250,6 +254,7 @@ static void MX_DMA_Init(void){
 //* @param None
 //* @retval None
 //*************************************************************
+
 static void MX_GPIO_Init(void){
 	GPIO_InitTypeDef GPIO_InitStruct = {0};
 
@@ -293,6 +298,7 @@ static void MX_GPIO_Init(void){
 //*************************************************************
 //*Callback for the interrupt reception on the RxPin of usart
 //*************************************************************
+
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size){
   
 	if (huart->Instance == USART1){
@@ -311,6 +317,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size){
 //*************************************************************
 //*Callback for the button interruption
 //*************************************************************
+
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	
 	HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
@@ -339,6 +346,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 //* @param  argument: Not used
 //* @retval None
 //*************************************************************
+
 void sensorFunction(void const * argument){
 
 	LIS3MDL_data.scale = LIS3MDL_SCALE_12_GAUSS;
@@ -382,6 +390,7 @@ void sensorFunction(void const * argument){
 //* @param argument: Not used
 //* @retval None
 //*************************************************************
+
 void recordingFunction(void const * argument){
 
 	LIS3MDL_StoreData_t message;
@@ -437,7 +446,6 @@ void recordingFunction(void const * argument){
 		}
 
 		else {
-
 			// The memory is not operative
 			message.statusData = MEMORY_ERROR;
 			// Send the data to the sendTask
@@ -454,6 +462,7 @@ void recordingFunction(void const * argument){
 //* @param argument: Not used
 //* @retval None
 //*************************************************************
+
 void receptionFunction(void const * argument){
 
 	LIS3MDL_StoreData_t message;
@@ -489,6 +498,7 @@ void receptionFunction(void const * argument){
 //* @param argument: Not used
 //* @retval None
 //*************************************************************
+
 void sendingFunction(void const * argument){
 
 	LIS3MDL_StoreData_t message;
@@ -568,6 +578,7 @@ void sendingFunction(void const * argument){
 //* @param  htim : TIM handle
 //* @retval None
 //*************************************************************
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	if (htim->Instance == TIM1) {
 		HAL_IncTick();
@@ -578,6 +589,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 //* @brief  This function is executed in case of error occurrence.
 //* @retval None
 //*************************************************************
+
 void Error_Handler(void){
 	__disable_irq();
 	while (1){}
