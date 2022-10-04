@@ -1,54 +1,22 @@
-/* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2022 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
-/* USER CODE END Header */
-/* Includes ------------------------------------------------------------------*/
+/*****************************************************************************
+* Principal program with the creation of task and the start of the scheduler
+*
+* Autor: Nicolas Rasitt
+* Created: 03/10/22
+*
+*****************************************************************************/
+
 #include "main.h"
 #include "cmsis_os.h"
-
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
 #include "../MyLibs/MyFunctions/MyFunctions.h"
 #include "../MyLibs/LIS3MDL/LIS3MDL.h"
 #include "../MyLibs/W25Q80DV/W25Q80DV.h"
 
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
 #define INIT_DATA_ADDRESS (W25Q80DV_FIRST_PAGE_ADDRESS + W25Q80DV_INITIALIZE_SIZE)
 #define INIT_DATA_SIZE  2
-/* USER CODE END PD */
 
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
-
 SPI_HandleTypeDef hspi1;
-
 UART_HandleTypeDef huart1;
 DMA_HandleTypeDef hdma_usart1_rx;
 
@@ -56,18 +24,16 @@ osThreadId measurementTaskHandle;
 osThreadId recordingTaskHandle;
 osThreadId receptionTaskHandle;
 osThreadId sendingTaskHandle;
+
 osSemaphoreId binarySemaphoreUARTHandle;
-/* USER CODE BEGIN PV */
 
 xQueueHandle queueDataProcessing, queueUsartReception, queueUsartSender;
+
 uint8_t Rx_data[UART_MAX_RECEIVE_DATA];
 LIS3MDL_Data_t LIS3MDL_data;
 LIS3MDL_StoreData_t LIS3MDL_storedata;
 W25Q80DV_Data_t W25Q80DV_data;
 
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
@@ -79,176 +45,115 @@ void recordingFunction(void const * argument);
 void receptionFunction(void const * argument);
 void sendingFunction(void const * argument);
 
-/* USER CODE BEGIN PFP */
-
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
-
 /**
   * @brief  The application entry point.
   * @retval int
   */
-int main(void)
-{
-  /* USER CODE BEGIN 1 */
+int main(void){
 
-  /* USER CODE END 1 */
+	// MCU Configuration
+	// Reset of all peripherals, Initializes the Flash interface and the Systick.
+	HAL_Init();
 
-  /* MCU Configuration--------------------------------------------------------*/
+	// Configure the system clock
+	SystemClock_Config();
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	// Initialize all configured peripherals
+	MX_GPIO_Init();
+	MX_DMA_Init();
+	MX_I2C1_Init();
+	MX_SPI1_Init();
+	MX_USART1_UART_Init();
 
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
-  SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_DMA_Init();
-  MX_I2C1_Init();
-  MX_SPI1_Init();
-  MX_USART1_UART_Init();
-  /* USER CODE BEGIN 2 */
 	// First we initialize the memory to recover all the data save(last uid);
 	if(w25q80dv_Init(&W25Q80DV_data, &hspi1, SPI1_NCS_Pin, SPI1_NCS_GPIO_Port)){
-
 		// If there's no data save in the memory, we must do an erase to start using it.
 		if(w25q80dv_isMemInit(&W25Q80DV_data) == FALSE){
-
+			
 			w25q80dv_EraseChip(&W25Q80DV_data);
-
+			
 			uint32_t initData = W25Q80DV_INITIALIZE_MEM;
-
+			
 			w25q80dv_WriteBytesInAddress(&W25Q80DV_data, W25Q80DV_FIRST_PAGE_ADDRESS, (uint8_t*)&initData, W25Q80DV_INITIALIZE_SIZE);
-
+			
 			LIS3MDL_data.uid = 0;
 		}
 		// Else we have to read the last ID save in memory to know where to start writting the memory.
 		else {
-
+			
 			uint16_t lastID;
-
+			
 			w25q80dv_ReadBytesInAddress(&W25Q80DV_data, INIT_DATA_ADDRESS, (uint8_t*)&lastID, INIT_DATA_SIZE);
-
+			
 			W25Q80DV_data.lastAddress = lastID*(sizeof(LIS3MDL_StoreData_t) - 1) + (INIT_DATA_ADDRESS + INIT_DATA_SIZE);
-
+			
 			LIS3MDL_data.uid = lastID;
 		}
 	}
 
-    PrintString(huart1, "Starting FreeRTOS System\r\n", sizeof("Starting FreeRTOS System\r\n"));
+	/* Create the semaphores(s) */
+	/* definition and creation of binarySemaphoreUART */
+	osSemaphoreDef(binarySemaphoreUART);
+	binarySemaphoreUARTHandle = osSemaphoreCreate(osSemaphore(binarySemaphoreUART), 1);
+	
+	/* Create the queue(s) */
+	queueDataProcessing = xQueueCreate(16, sizeof(LIS3MDL_StoreData_t));
+	queueUsartReception = xQueueCreate(16, sizeof(uint16_t));
+	queueUsartSender = xQueueCreate(16, sizeof(LIS3MDL_StoreData_t));
+	
+	/* Create the thread(s) */
+	/* definition and creation of measurementTask */
+	osThreadDef(measurementTask, measurementFunction, osPriorityNormal, 0, 128);
+	measurementTaskHandle = osThreadCreate(osThread(measurementTask), NULL);
+	osThreadDef(recordingTask, recordingFunction, osPriorityNormal, 0, 128);
+	recordingTaskHandle = osThreadCreate(osThread(recordingTask), NULL);
+	osThreadDef(receptionTask, receptionFunction, osPriorityNormal, 0, 128);
+	receptionTaskHandle = osThreadCreate(osThread(receptionTask), NULL);
+	osThreadDef(sendingTask, sendingFunction, osPriorityNormal, 0, 128);
+	sendingTaskHandle = osThreadCreate(osThread(sendingTask), NULL);
 
-  /* USER CODE END 2 */
+	PrintString(huart1, "Starting FreeRTOS System\r\n", sizeof("Starting FreeRTOS System\r\n"));
 
-  /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
-  /* USER CODE END RTOS_MUTEX */
-
-  /* Create the semaphores(s) */
-  /* definition and creation of binarySemaphoreUART */
-  osSemaphoreDef(binarySemaphoreUART);
-  binarySemaphoreUARTHandle = osSemaphoreCreate(osSemaphore(binarySemaphoreUART), 1);
-
-  /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
-  /* USER CODE END RTOS_SEMAPHORES */
-
-  /* USER CODE BEGIN RTOS_TIMERS */
-  /* start timers, add new ones, ... */
-  /* USER CODE END RTOS_TIMERS */
-
-  /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
-  queueDataProcessing = xQueueCreate(16, sizeof(LIS3MDL_StoreData_t));
-  queueUsartReception = xQueueCreate(16, sizeof(uint16_t));
-  queueUsartSender = xQueueCreate(16, sizeof(LIS3MDL_StoreData_t));
-  /* USER CODE END RTOS_QUEUES */
-
-  /* Create the thread(s) */
-  /* definition and creation of measurementTask */
-  osThreadDef(measurementTask, measurementFunction, osPriorityNormal, 0, 128);
-  measurementTaskHandle = osThreadCreate(osThread(measurementTask), NULL);
-
-  /* definition and creation of recordingTask */
-  osThreadDef(recordingTask, recordingFunction, osPriorityNormal, 0, 128);
-  recordingTaskHandle = osThreadCreate(osThread(recordingTask), NULL);
-
-  /* definition and creation of receptionTask */
-  osThreadDef(receptionTask, receptionFunction, osPriorityNormal, 0, 128);
-  receptionTaskHandle = osThreadCreate(osThread(receptionTask), NULL);
-
-  /* definition and creation of sendingTask */
-  osThreadDef(sendingTask, sendingFunction, osPriorityNormal, 0, 128);
-  sendingTaskHandle = osThreadCreate(osThread(sendingTask), NULL);
-
-  /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
-  /* USER CODE END RTOS_THREADS */
-
-  /* Start scheduler */
-  osKernelStart();
-
-  /* We should never get here as control is now taken by the scheduler */
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
-  }
-  /* USER CODE END 3 */
+	/* Start scheduler */
+	osKernelStart();
+	/* We should never get here as control is now taken by the scheduler */
+	/* Infinite loop */
+	while (1){}
 }
 
 /**
   * @brief System Clock Configuration
   * @retval None
   */
-void SystemClock_Config(void)
-{
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+void SystemClock_Config(void){
+  
+	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+	RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+	/** Initializes the RCC Oscillators according to the specified parameters
+	 * in the RCC_OscInitTypeDef structure.
+	 */
+	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+	RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+	RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
+	RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+	RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
+	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK){
+		Error_Handler();
+	}
+	/** Initializes the CPU, AHB and APB buses clocks
+	 */
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+								|RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
-  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-  RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
-  {
-    Error_Handler();
-  }
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK){
+		Error_Handler();
+	}
 }
 
 /**
@@ -256,33 +161,20 @@ void SystemClock_Config(void)
   * @param None
   * @retval None
   */
-static void MX_I2C1_Init(void)
-{
+static void MX_I2C1_Init(void){
 
-  /* USER CODE BEGIN I2C1_Init 0 */
-
-  /* USER CODE END I2C1_Init 0 */
-
-  /* USER CODE BEGIN I2C1_Init 1 */
-
-  /* USER CODE END I2C1_Init 1 */
-  hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 100000;
-  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
-  hi2c1.Init.OwnAddress1 = 0;
-  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-  hi2c1.Init.OwnAddress2 = 0;
-  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN I2C1_Init 2 */
-
-  /* USER CODE END I2C1_Init 2 */
-
+	hi2c1.Instance = I2C1;
+	hi2c1.Init.ClockSpeed = 100000;
+	hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
+	hi2c1.Init.OwnAddress1 = 0;
+	hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+	hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+	hi2c1.Init.OwnAddress2 = 0;
+	hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+	hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+	if (HAL_I2C_Init(&hi2c1) != HAL_OK){
+		Error_Handler();
+	}
 }
 
 /**
@@ -290,37 +182,24 @@ static void MX_I2C1_Init(void)
   * @param None
   * @retval None
   */
-static void MX_SPI1_Init(void)
-{
+static void MX_SPI1_Init(void){
 
-  /* USER CODE BEGIN SPI1_Init 0 */
-
-  /* USER CODE END SPI1_Init 0 */
-
-  /* USER CODE BEGIN SPI1_Init 1 */
-
-  /* USER CODE END SPI1_Init 1 */
-  /* SPI1 parameter configuration*/
-  hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi1.Init.CRCPolynomial = 10;
-  if (HAL_SPI_Init(&hspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI1_Init 2 */
-
-  /* USER CODE END SPI1_Init 2 */
-
+	/* SPI1 parameter configuration*/
+	hspi1.Instance = SPI1;
+	hspi1.Init.Mode = SPI_MODE_MASTER;
+	hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+	hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+	hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+	hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+	hspi1.Init.NSS = SPI_NSS_SOFT;
+	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+	hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+	hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+	hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+	hspi1.Init.CRCPolynomial = 10;
+	if (HAL_SPI_Init(&hspi1) != HAL_OK){
+		Error_Handler();
+	}
 }
 
 /**
@@ -328,51 +207,35 @@ static void MX_SPI1_Init(void)
   * @param None
   * @retval None
   */
-static void MX_USART1_UART_Init(void)
-{
+static void MX_USART1_UART_Init(void){
 
-  /* USER CODE BEGIN USART1_Init 0 */
-
-  /* USER CODE END USART1_Init 0 */
-
-  /* USER CODE BEGIN USART1_Init 1 */
-
-  /* USER CODE END USART1_Init 1 */
-  huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
-  huart1.Init.WordLength = UART_WORDLENGTH_8B;
-  huart1.Init.StopBits = UART_STOPBITS_1;
-  huart1.Init.Parity = UART_PARITY_NONE;
-  huart1.Init.Mode = UART_MODE_TX_RX;
-  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USART1_Init 2 */
-
-  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, Rx_data, UART_MAX_RECEIVE_DATA);
-  __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
-
-  /* USER CODE END USART1_Init 2 */
-
+	huart1.Instance = USART1;
+	huart1.Init.BaudRate = 115200;
+	huart1.Init.WordLength = UART_WORDLENGTH_8B;
+	huart1.Init.StopBits = UART_STOPBITS_1;
+	huart1.Init.Parity = UART_PARITY_NONE;
+	huart1.Init.Mode = UART_MODE_TX_RX;
+	huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+	huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+	if (HAL_UART_Init(&huart1) != HAL_OK){
+		Error_Handler();
+	}
+	HAL_UARTEx_ReceiveToIdle_DMA(&huart1, Rx_data, UART_MAX_RECEIVE_DATA);
+	__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
 }
 
 /**
   * Enable DMA controller clock
   */
-static void MX_DMA_Init(void)
-{
+static void MX_DMA_Init(void){
 
-  /* DMA controller clock enable */
-  __HAL_RCC_DMA1_CLK_ENABLE();
+	/* DMA controller clock enable */
+	__HAL_RCC_DMA1_CLK_ENABLE();
 
-  /* DMA interrupt init */
-  /* DMA1_Channel5_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
-
+	/* DMA interrupt init */
+	/* DMA1_Channel5_IRQn interrupt configuration */
+	HAL_NVIC_SetPriority(DMA1_Channel5_IRQn, 5, 0);
+	HAL_NVIC_EnableIRQ(DMA1_Channel5_IRQn);
 }
 
 /**
@@ -380,95 +243,86 @@ static void MX_DMA_Init(void)
   * @param None
   * @retval None
   */
-static void MX_GPIO_Init(void)
-{
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
+static void MX_GPIO_Init(void){
+	GPIO_InitTypeDef GPIO_InitStruct = {0};
 
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
+	/* GPIO Ports Clock Enable */
+	__HAL_RCC_GPIOC_CLK_ENABLE();
+	__HAL_RCC_GPIOD_CLK_ENABLE();
+	__HAL_RCC_GPIOA_CLK_ENABLE();
+	__HAL_RCC_GPIOB_CLK_ENABLE();
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI1_NCS_Pin, GPIO_PIN_SET);
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(SPI1_NCS_GPIO_Port, SPI1_NCS_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pin : LED_Pin */
-  GPIO_InitStruct.Pin = LED_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
+	/*Configure GPIO pin : LED_Pin */
+	GPIO_InitStruct.Pin = LED_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : SPI1_NCS_Pin */
-  GPIO_InitStruct.Pin = SPI1_NCS_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(SPI1_NCS_GPIO_Port, &GPIO_InitStruct);
+	/*Configure GPIO pin : SPI1_NCS_Pin */
+	GPIO_InitStruct.Pin = SPI1_NCS_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_PULLUP;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(SPI1_NCS_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : BUTTON_Pin */
-  GPIO_InitStruct.Pin = BUTTON_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(BUTTON_GPIO_Port, &GPIO_InitStruct);
+	/*Configure GPIO pin : BUTTON_Pin */
+	GPIO_InitStruct.Pin = BUTTON_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+	GPIO_InitStruct.Pull = GPIO_PULLUP;
+	HAL_GPIO_Init(BUTTON_GPIO_Port, &GPIO_InitStruct);
 
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
-
+	/* EXTI interrupt init*/
+	HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
+	HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
-
-/* USER CODE BEGIN 4 */
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size){
   
-  if (huart->Instance == USART1){
-  
-    if(StoreUSARTData(Rx_data, size)){
-  
-        osSemaphoreRelease(binarySemaphoreUARTHandle);
-    }
-  
-    HAL_UARTEx_ReceiveToIdle_DMA(&huart1, Rx_data, UART_MAX_RECEIVE_DATA);
-  
-    __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
-  }
+	if (huart->Instance == USART1){
+
+		if(StoreUSARTData(Rx_data, size)){
+
+			osSemaphoreRelease(binarySemaphoreUARTHandle);
+		}
+
+		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, Rx_data, UART_MAX_RECEIVE_DATA);
+
+		__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+	}
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	
-  HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
-    
-  if(GPIO_Pin == BUTTON_Pin){
+	HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
 
-    LIS3MDL_StoreData_t message = LIS3MDL_storedata;
+	if(GPIO_Pin == BUTTON_Pin){
 
-    message.statusData = DATA_READ;
-    
-    portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
-    
-    xQueueSendToFrontFromISR(queueUsartSender, &message, &xHigherPriorityTaskWoken);
-  }
-  
+		LIS3MDL_StoreData_t message = LIS3MDL_storedata;
+
+		message.statusData = DATA_READ;
+
+		portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
+
+		xQueueSendToFrontFromISR(queueUsartSender, &message, &xHigherPriorityTaskWoken);
+	}
+
 	HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
 
-/* USER CODE END 4 */
-
-/* USER CODE BEGIN Header_measurementFunction */
 /**
   * @brief  Function implementing the measurementTask thread.
   * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_measurementFunction */
-void measurementFunction(void const * argument)
-{
-  /* USER CODE BEGIN 5 */
+void measurementFunction(void const * argument){
+
 	LIS3MDL_data.scale = LIS3MDL_SCALE_12_GAUSS;
 
 	lis3mdl_Init(&LIS3MDL_data, &hi2c1);
@@ -479,7 +333,7 @@ void measurementFunction(void const * argument)
 
 		if(lis3mdl_DataReady(&LIS3MDL_data) == HAL_OK){
 
-		  LIS3MDL_data.uid++;
+			LIS3MDL_data.uid++;
 
 			lis3mdl_ReadMagnetometer(&LIS3MDL_data);
 
@@ -492,26 +346,21 @@ void measurementFunction(void const * argument)
 			xQueueSend(queueDataProcessing, &LIS3MDL_storedata, portMAX_DELAY);
 		}
 
-    else {
+		else {
 
 			LIS3MDL_storedata.statusData = LIS3MDL_ERROR;
 
 			xQueueSend(queueUsartSender, &LIS3MDL_storedata, portMAX_DELAY);
-    }
+		}
 	}
-  /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_recordingFunction */
 /**
 * @brief Function implementing the recordingTask thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_recordingFunction */
-void recordingFunction(void const * argument)
-{
-  /* USER CODE BEGIN recordingFunction */
+void recordingFunction(void const * argument){
 
 	LIS3MDL_StoreData_t message;
 
@@ -573,61 +422,47 @@ void recordingFunction(void const * argument)
 			xQueueSend(queueUsartSender, &message, portMAX_DELAY);
 		}
 	}
-  /* USER CODE END recordingFunction */
 }
 
-/* USER CODE BEGIN Header_receptionFunction */
 /**
 * @brief Function implementing the receptionTask thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_receptionFunction */
-void receptionFunction(void const * argument)
-{
-  /* USER CODE BEGIN receptionFunction */
-  /* Infinite loop */
+void receptionFunction(void const * argument){
 
 	LIS3MDL_StoreData_t message;
 
 	while(1){
 		
-    osSemaphoreWait(binarySemaphoreUARTHandle, osWaitForever);
-		
-    uint16_t measureAsk = 0;
-		
-    if(DecodeReceivedData(&measureAsk)){
+		osSemaphoreWait(binarySemaphoreUARTHandle, osWaitForever);
+			
+		uint16_t measureAsk = 0;
+			
+		if(DecodeReceivedData(&measureAsk)){
 
-      message.uid = measureAsk;
+			message.uid = measureAsk;
 
-      message.statusData = READ_DATA;
-      
-      // Send the data to the sendingTask
+			message.statusData = READ_DATA;
+			// Send the data to the sendingTask
 			xQueueSend(queueDataProcessing, &message, portMAX_DELAY);
 		}
 
-    else {
+		else {
 
-      message.statusData = UNKNOWN_ERROR;
-      
-      // Send the data to the sendingTask
+			message.statusData = UNKNOWN_ERROR;
+			// Send the data to the sendingTask
 			xQueueSend(queueUsartSender, &message, portMAX_DELAY);
-    }
+		}
 	}
-  /* USER CODE END receptionFunction */
 }
 
-/* USER CODE BEGIN Header_sendingFunction */
 /**
 * @brief Function implementing the sendingTask thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_sendingFunction */
-void sendingFunction(void const * argument)
-{
-  /* USER CODE BEGIN sendingFunction */
-  /* Infinite loop */
+void sendingFunction(void const * argument){
 
 	LIS3MDL_StoreData_t message;
 
@@ -637,77 +472,77 @@ void sendingFunction(void const * argument)
 
 		switch(message.statusData){
 
-		  case MEMORY_FULL:
+			case MEMORY_FULL:
 
-			PrintString(huart1, "Error memory full", 17);
+				PrintString(huart1, "Error memory full", 17);
 
-		  break;
+			break;
 
-		  case WRONG_ID:
+			case WRONG_ID:
 
-			PrintString(huart1, "Searching for the uid data: ", 28);
+				PrintString(huart1, "Searching for the uid data: ", 28);
 
-			PrintIntFormat(huart1, message.uid);
+				PrintIntFormat(huart1, message.uid);
 
-			PrintEnter(huart1);
+				PrintEnter(huart1);
 
-			PrintString(huart1, "Wrong ID", 8);
+				PrintString(huart1, "Wrong ID", 8);
 
-		  break;
+			break;
 
-		  case DATA_READ:
+			case DATA_READ:
 
-			PrintString(huart1, "Searching for the uid data: ", 28);
+				PrintString(huart1, "Searching for the uid data: ", 28);
 
-			PrintIntFormat(huart1, message.uid);
+				PrintIntFormat(huart1, message.uid);
 
-			PrintEnter(huart1);
+				PrintEnter(huart1);
 
-			PrintString(huart1, "Data sensor -> x:", 15);
+				PrintString(huart1, "Data sensor -> x:", 15);
 
-			PrintFloat(huart1, message.mag_x, 4);
+				PrintFloat(huart1, message.mag_x, 4);
 
-			PrintString(huart1, " , y: ", 6);
+				PrintString(huart1, " , y: ", 6);
 
-			PrintFloat(huart1, message.mag_y, 4);
+				PrintFloat(huart1, message.mag_y, 4);
 
-			PrintString(huart1, " , z: ", 6);
+				PrintString(huart1, " , z: ", 6);
 
-			PrintFloat(huart1, message.mag_z, 4);
+				PrintFloat(huart1, message.mag_z, 4);
 
-			PrintString(huart1, " , temp: ", 9);
+				PrintString(huart1, " , temp: ", 9);
 
-			PrintFloat(huart1, message.temp, 4);
+				PrintFloat(huart1, message.temp, 4);
 
-		  break;
+			break;
 
-		  case UNKNOWN_ERROR:
+			case UNKNOWN_ERROR:
 
-			PrintString(huart1, "Unknown error detected", 21);
+				PrintString(huart1, "Unknown error detected", 21);
 
-		  break;
+			break;
 
-		  case LIS3MDL_ERROR:
+			case LIS3MDL_ERROR:
 
-			PrintString(huart1, "The sensor has an error", 23);
+				PrintString(huart1, "The sensor has an error", 23);
 
-		  break;
+			break;
 
-		  case MEMORY_ERROR:
+			case MEMORY_ERROR:
 
-			PrintString(huart1, "The memory has an error", 23);
+				PrintString(huart1, "The memory has an error", 23);
 
-		  break;
+			break;
 
-		  case DATA_SAVE:
-		  case NO_ERROR:
-		  case READ_DATA:
-		  case SAVE_DATA: break;
+			case DATA_SAVE:
+			case NO_ERROR:
+			case READ_DATA:
+			case SAVE_DATA:
+			break;
 		}
 
 		PrintEnter(huart1);
 	}
-  /* USER CODE END sendingFunction */
 }
 
 /**
@@ -718,32 +553,19 @@ void sendingFunction(void const * argument)
   * @param  htim : TIM handle
   * @retval None
   */
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-  /* USER CODE BEGIN Callback 0 */
-
-  /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM1) {
-    HAL_IncTick();
-  }
-  /* USER CODE BEGIN Callback 1 */
-
-  /* USER CODE END Callback 1 */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	if (htim->Instance == TIM1) {
+		HAL_IncTick();
+	}
 }
 
 /**
   * @brief  This function is executed in case of error occurrence.
   * @retval None
   */
-void Error_Handler(void)
-{
-  /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
-  /* USER CODE END Error_Handler_Debug */
+void Error_Handler(void){
+	__disable_irq();
+	while (1){}
 }
 
 #ifdef  USE_FULL_ASSERT
@@ -754,11 +576,8 @@ void Error_Handler(void)
   * @param  line: assert_param error line source number
   * @retval None
   */
-void assert_failed(uint8_t *file, uint32_t line)
-{
-  /* USER CODE BEGIN 6 */
+void assert_failed(uint8_t *file, uint32_t line){
   /* User can add his own implementation to report the file name and line number,
      ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-  /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
