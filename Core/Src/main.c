@@ -49,9 +49,9 @@ static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART1_UART_Init(void);
 void sensorFunction(void const * argument);
-void recordingFunction(void const * argument);
-void receptionFunction(void const * argument);
-void sendingFunction(void const * argument);
+void memoryFunction(void const * argument);
+void receiveFunction(void const * argument);
+void sendFunction(void const * argument);
 
 /*==================[main function]==========================================*/
 
@@ -109,11 +109,11 @@ int main(void){
 	/* Create the thread(s) */
 	osThreadDef(sensorTask, sensorFunction, osPriorityNormal, 0, 128);
 	sensorTaskHandle = osThreadCreate(osThread(sensorTask), NULL);
-	osThreadDef(receiveTask, receptionFunction, osPriorityNormal, 0, 128);
+	osThreadDef(receiveTask, receiveFunction, osPriorityNormal, 0, 128);
 	receiveTaskHandle = osThreadCreate(osThread(receiveTask), NULL);
-	osThreadDef(sendTask, sendingFunction, osPriorityNormal, 0, 128);
+	osThreadDef(sendTask, sendFunction, osPriorityNormal, 0, 128);
 	sendTaskHandle = osThreadCreate(osThread(sendTask), NULL);
-	osThreadDef(memoryTask, recordingFunction, osPriorityNormal, 0, 128);
+	osThreadDef(memoryTask, memoryFunction, osPriorityNormal, 0, 128);
 	memoryTaskHandle = osThreadCreate(osThread(memoryTask), NULL);
 
 	PrintString(huart1, "Starting FreeRTOS System\r\n", sizeof("Starting FreeRTOS System\r\n"));
@@ -391,7 +391,7 @@ void sensorFunction(void const * argument){
 //* @retval None
 //*************************************************************
 
-void recordingFunction(void const * argument){
+void memoryFunction(void const * argument){
 
 	LIS3MDL_StoreData_t message;
 
@@ -463,7 +463,7 @@ void recordingFunction(void const * argument){
 //* @retval None
 //*************************************************************
 
-void receptionFunction(void const * argument){
+void receiveFunction(void const * argument){
 
 	LIS3MDL_StoreData_t message;
 
@@ -499,7 +499,7 @@ void receptionFunction(void const * argument){
 //* @retval None
 //*************************************************************
 
-void sendingFunction(void const * argument){
+void sendFunction(void const * argument){
 
 	LIS3MDL_StoreData_t message;
 
