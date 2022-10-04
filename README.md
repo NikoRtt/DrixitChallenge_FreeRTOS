@@ -5,7 +5,7 @@ The project is based on the STM32F103C8T6, known as "blue pill". It's an Arm® 3
 
 ## Pin Configuration
 
-<img src="https://github.com/NikoRtt/DrixitChallenge_FreeRTOS/blob/ea9a8ff8d8b4b712ecd8ad319361af6322595b1b/ProjectOrganization.JPG" alt="Project Organization"/>
+<img src="https://github.com/NikoRtt/DrixitChallenge_FreeRTOS/blob/80589b03df969299461041aa941732c8b0c51c63/PinConfiguration.JPG" alt="Pin configuration"/>
 
 ## Project organization
 
@@ -14,6 +14,8 @@ The project is based on the STM32F103C8T6, known as "blue pill". It's an Arm® 3
 The present project has a folder call "MyLibs" that contains 4 folders: first for the magnetometer LIS3MDL(includes the .c and .h), second for my functions, it's a group of the commonly functions I used accross the project like printString to send data to the usart, third the folder myInc in which I put all the definition, macros and declaration I used throw the whole project.
 
 ## Project operation with FreeRTOS
+
+<img src="https://github.com/NikoRtt/DrixitChallenge_FreeRTOS/blob/80589b03df969299461041aa941732c8b0c51c63/SystemConfiguration.JPG" alt="System Organization"/>
 
 In the main of the project, all the necessary peripherals will be initialized to be able to work correctly, in our case: USART1, DMA, GPIO, CLOCK, I2C1, SPI1. Once the hardware initialization is finished, it proceeds to initialize the WINBOND W25Q80DV memory and detect if the memory already has preloaded data or if we must initialize it for the first time. This is made by reading the first 4 bytes of the first page of the memory, and if this word matches the expected initialized data then we have valid data in the meory. If we have data, then the next 4 bytes will have the last UID of the sensor data saved in the memory, and in that case, we load it into the global variable for general use. The memory is organized in the follow way:
 
@@ -35,7 +37,7 @@ The binarySemaphoreUART is used to wake up the receiveTask and it's the interrup
 
 #### QueueDataProcessing:
 
-The queueDataProcessing is a queue that is used to send data from the sensorTask to the memoryTask so that data can be saved in the Winbond memory. It's only used by this two task and it carries data of the type LIS3MDLStoreData_t.
+The queueDataProcessing is a queue that is used to send data from the sensorTask or the receiveTask to the memoryTask so that data can be saved or read in the Winbond memory. It's only used by this three tasks and it carries data of the type LIS3MDLStoreData_t.
 
 #### queueUsartSender:
 
@@ -51,7 +53,7 @@ This task will be in charge of saving the data from the LIS3MDL sensor in the Wi
 
 ### Task3: receiveTask
 
-This task will be in charge of extract and decode the data received by the usart1. This data must be a positive number. In the case that there is a problem with the data received, it will report inmediately to the senderTask. This task will use the MyFunctions library developed.
+This task will be in charge of extract and decode the data received by the usart1, and send this data to the task in charge of reading data in memory, the memoryTask. This data must be a positive number. In the case that there is a problem with the data received, it will report inmediately to the senderTask. This task will use the MyFunctions library developed.
 
 ### Task4: senderTask
 
