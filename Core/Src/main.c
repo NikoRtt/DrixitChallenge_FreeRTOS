@@ -48,7 +48,7 @@ static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART1_UART_Init(void);
-void measurementFunction(void const * argument);
+void sensorFunction(void const * argument);
 void recordingFunction(void const * argument);
 void receptionFunction(void const * argument);
 void sendingFunction(void const * argument);
@@ -108,7 +108,7 @@ int main(void){
 	queueUsartSender = xQueueCreate(16, sizeof(LIS3MDL_StoreData_t));
 	
 	/* Create the thread(s) */
-	osThreadDef(sensorTask, measurementFunction, osPriorityNormal, 0, 128);
+	osThreadDef(sensorTask, sensorFunction, osPriorityNormal, 0, 128);
 	sensorTaskHandle = osThreadCreate(osThread(sensorTask), NULL);
 	osThreadDef(receiveTask, receptionFunction, osPriorityNormal, 0, 128);
 	receiveTaskHandle = osThreadCreate(osThread(receiveTask), NULL);
@@ -330,11 +330,16 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 }
 
 //*************************************************************
-//* @brief  Function implementing the sensorTask thread.
+//* @brief  Function implementing the sensorTask thread. It's
+// in charge of getting the measure of x, y and z axes of the
+// magnetometer and the temperature, and then send it to the
+// memoryTask to save the data. In the case that there is a
+// problem with the sensor, it will report inmediately to the
+// sendTask.
 //* @param  argument: Not used
 //* @retval None
 //*************************************************************
-void measurementFunction(void const * argument){
+void sensorFunction(void const * argument){
 
 	LIS3MDL_data.scale = LIS3MDL_SCALE_12_GAUSS;
 
@@ -369,7 +374,11 @@ void measurementFunction(void const * argument){
 }
 
 //*************************************************************
-//* @brief Function implementing the memoryTask thread.
+//* @brief Function implementing the memoryTask thread. It's in
+// charge to save the data of the sensor in the memory and
+// reporting the data of the memory if it receives an id number
+// from the receiveTask. In case there is a problem with the
+// memory,it will report inmediately to the sendTask.
 //* @param argument: Not used
 //* @retval None
 //*************************************************************
@@ -438,7 +447,10 @@ void recordingFunction(void const * argument){
 }
 
 //*************************************************************
-//* @brief Function implementing the receiveTask thread.
+//* @brief Function implementing the receiveTask thread. Decodes
+// the data from the usart1 when the interruption is trigger. In
+// case there is a problem with the decoding of the string into
+// a integer, it will report inmediately to the sendTask.
 //* @param argument: Not used
 //* @retval None
 //*************************************************************
@@ -471,7 +483,9 @@ void receptionFunction(void const * argument){
 }
 
 //*************************************************************
-//* @brief Function implementing the sendTask thread.
+//* @brief Function implementing the sendTask thread. Receives
+// all the data from the other task and report what is neccesary
+// in the usart1.
 //* @param argument: Not used
 //* @retval None
 //*************************************************************
