@@ -19,13 +19,13 @@ The present project has a folder called "MyLibs" that contains 4 folders: first 
 
 In "main.c" all the necessary peripherals will be initialized to be able to work correctly, in our case: USART1, DMA, GPIO, CLOCK, I2C1, SPI1. Once the hardware initialization is finished, it proceeds to initialize the WINBOND W25Q80DV memory and detect if the memory already has preloaded data or if we must initialize it for the first time. This is made by reading the first 4 bytes of the first page of the memory, and if this word matches the expected initialized data then we have valid data in the memory. If we have data, then the next 2 bytes will have the last UID of the sensor data saved in the memory, and in that case, we load it into the global variable for general use. The memory is organized in the following way:
 
-<h1 align="center">-------------------------------------- 0xFFFFFF<h1>
-<h1 align="center">| Space to saved data (Free space)   |<h1>
-<h1 align="center">-------------------------------------- 0x000006<h1>
-<h1 align="center">| Last Used UID (2 bytes)            |<h1>
-<h1 align="center">-------------------------------------- 0x000004<h1>
-<h1 align="center">| Memory Init (4 bytes) = 0xAAAAAAAA |<h1>
-<h1 align="center">-------------------------------------- 0x000000<h1>
+-------------------------------------- 0xFFFFFF<br>
+| Space to saved data (Free space)   |<br>
+-------------------------------------- 0x000006<br>
+| Last Used UID (2 bytes)            |<br>
+-------------------------------------- 0x000004<br>
+| Memory Init (4 bytes) = 0xAAAAAAAA |<br>
+-------------------------------------- 0x000000<br>
 
 We continue to create the FreeRTOS tasks and the communication channels between them, such as the binarySemaphoreUART semaphore and the message queues called queueDataProcessing and queueUsartSender.
 
