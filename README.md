@@ -11,24 +11,24 @@ The project is based on the STM32F103C8T6, known as "blue pill". It's an Arm® 3
 
 <img src="https://github.com/NikoRtt/DrixitChallenge_FreeRTOS/blob/ea9a8ff8d8b4b712ecd8ad319361af6322595b1b/ProjectOrganization.JPG" alt="Project Organization"/>
 
-The present project has a folder call "MyLibs" that contains 4 folders: first for the magnetometer LIS3MDL(includes the .c and .h), second for my functions, it's a group of the commonly functions I used accross the project like printString to send data to the usart, third the folder myInc in which I put all the definition, macros and declaration I used throw the whole project.
+The present project has a folder called "MyLibs" that contains 4 folders: first for the LIS3MDL magnetometer (includes .c and .h), second for my functions, it is a group of the common functions that I used in the whole project like "printString" to send data to the usart, third the "MyInc" folder in which I put all the definitions, macros and declarations that I used to launch the whole project.
 
 ## Project operation with FreeRTOS
 
 <img src="https://github.com/NikoRtt/DrixitChallenge_FreeRTOS/blob/80589b03df969299461041aa941732c8b0c51c63/SystemConfiguration.JPG" alt="System Organization"/>
 
-In the main of the project, all the necessary peripherals will be initialized to be able to work correctly, in our case: USART1, DMA, GPIO, CLOCK, I2C1, SPI1. Once the hardware initialization is finished, it proceeds to initialize the WINBOND W25Q80DV memory and detect if the memory already has preloaded data or if we must initialize it for the first time. This is made by reading the first 4 bytes of the first page of the memory, and if this word matches the expected initialized data then we have valid data in the meory. If we have data, then the next 4 bytes will have the last UID of the sensor data saved in the memory, and in that case, we load it into the global variable for general use. The memory is organized in the follow way:
+In "main.c" all the necessary peripherals will be initialized to be able to work correctly, in our case: USART1, DMA, GPIO, CLOCK, I2C1, SPI1. Once the hardware initialization is finished, it proceeds to initialize the WINBOND W25Q80DV memory and detect if the memory already has preloaded data or if we must initialize it for the first time. This is made by reading the first 4 bytes of the first page of the memory, and if this word matches the expected initialized data then we have valid data in the memory. If we have data, then the next 2 bytes will have the last UID of the sensor data saved in the memory, and in that case, we load it into the global variable for general use. The memory is organized in the following way:
 
--------------------------------------- 0xFFFFFF
-| Space to saved data (Free space)   |
--------------------------------------- 0x000006
-| Last Used UID (2 bytes)            |
--------------------------------------- 0x000004
-| Memory Init (4 bytes) = 0xAAAAAAAA |
--------------------------------------- 0x000000
+<h1 align="center">-------------------------------------- 0xFFFFFF<h1>
+<h1 align="center">| Space to saved data (Free space)   |<h1>
+<h1 align="center">-------------------------------------- 0x000006<h1>
+<h1 align="center">| Last Used UID (2 bytes)            |<h1>
+<h1 align="center">-------------------------------------- 0x000004<h1>
+<h1 align="center">| Memory Init (4 bytes) = 0xAAAAAAAA |<h1>
+<h1 align="center">-------------------------------------- 0x000000<h1>
 
 We continue to create the FreeRTOS tasks and the communication channels between them, such as the binarySemaphoreUART semaphore and the message queues called queueDataProcessing and queueUsartSender.
-Last Used UID
+
 ### Semaphore: binarySemaphoreUART
 
 The binarySemaphoreUART is used to wake up the receiveTask and it's the interrupt of the reception of the usart1 which grants the semaphore to the task. The usart1 is configure to works with the DMA and interrupt the program when a full reception in the Rx pin is detected (reception after an idle period).
