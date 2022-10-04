@@ -215,8 +215,6 @@ LIS3MDL_StoreData_t lis3mdl_ConvertToStoreData ( LIS3MDL_Data_t* dev ){
 
 	newData.uid = dev->uid;
 
-	newData.readData = FALSE;
-
 	return newData;
 }
 

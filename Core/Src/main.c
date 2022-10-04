@@ -35,6 +35,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define INIT_DATA_ADDRESS (W25Q80DV_FIRST_PAGE_ADDRESS + W25Q80DV_INITIALIZE_SIZE)
+#define INIT_DATA_SIZE  2
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -54,13 +56,13 @@ osThreadId measurementTaskHandle;
 osThreadId recordingTaskHandle;
 osThreadId receptionTaskHandle;
 osThreadId sendingTaskHandle;
-osMessageQId usartReceptionQueueHandle;
 osSemaphoreId binarySemaphoreUARTHandle;
 /* USER CODE BEGIN PV */
 
-xQueueHandle queueDataProcessing, queueUsartReception;
+xQueueHandle queueDataProcessing, queueUsartReception, queueUsartSender;
 uint8_t Rx_data[UART_MAX_RECEIVE_DATA];
 LIS3MDL_Data_t LIS3MDL_data;
+LIS3MDL_StoreData_t LIS3MDL_storedata;
 W25Q80DV_Data_t W25Q80DV_data;
 
 /* USER CODE END PV */
@@ -119,6 +121,34 @@ int main(void)
   MX_SPI1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+	// First we initialize the memory to recover all the data save(last uid);
+	if(w25q80dv_Init(&W25Q80DV_data, &hspi1, SPI1_NCS_Pin, SPI1_NCS_GPIO_Port)){
+
+		// If there's no data save in the memory, we must do an erase to start using it.
+		if(w25q80dv_isMemInit(&W25Q80DV_data) == FALSE){
+
+			w25q80dv_EraseChip(&W25Q80DV_data);
+
+			uint32_t initData = W25Q80DV_INITIALIZE_MEM;
+
+			w25q80dv_WriteBytesInAddress(&W25Q80DV_data, W25Q80DV_FIRST_PAGE_ADDRESS, (uint8_t*)&initData, W25Q80DV_INITIALIZE_SIZE);
+
+			LIS3MDL_data.uid = 0;
+		}
+		// Else we have to read the last ID save in memory to know where to start writting the memory.
+		else {
+
+			uint16_t lastID;
+
+			w25q80dv_ReadBytesInAddress(&W25Q80DV_data, INIT_DATA_ADDRESS, (uint8_t*)&lastID, INIT_DATA_SIZE);
+
+			W25Q80DV_data.lastAddress = lastID*(sizeof(LIS3MDL_StoreData_t) - 1) + (INIT_DATA_ADDRESS + INIT_DATA_SIZE);
+
+			LIS3MDL_data.uid = lastID;
+		}
+	}
+
+    PrintString(huart1, "Starting FreeRTOS System\r\n", sizeof("Starting FreeRTOS System\r\n"));
 
   /* USER CODE END 2 */
 
@@ -139,15 +169,11 @@ int main(void)
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
 
-  /* Create the queue(s) */
-  /* definition and creation of usartReceptionQueue */
-  osMessageQDef(usartReceptionQueue, 16, uint8_t);
-  usartReceptionQueueHandle = osMessageCreate(osMessageQ(usartReceptionQueue), NULL);
-
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   queueDataProcessing = xQueueCreate(16, sizeof(LIS3MDL_StoreData_t));
   queueUsartReception = xQueueCreate(16, sizeof(uint16_t));
+  queueUsartSender = xQueueCreate(16, sizeof(LIS3MDL_StoreData_t));
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -399,13 +425,36 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t size){
-    if (huart->Instance == USART1){
-    	if(StoreUSARTData(Rx_data, size)){
-        	osSemaphoreRelease(binarySemaphoreUARTHandle);
-    	}
-		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, Rx_data, UART_MAX_RECEIVE_DATA);
-		__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+  
+  if (huart->Instance == USART1){
+  
+    if(StoreUSARTData(Rx_data, size)){
+  
+        osSemaphoreRelease(binarySemaphoreUARTHandle);
     }
+  
+    HAL_UARTEx_ReceiveToIdle_DMA(&huart1, Rx_data, UART_MAX_RECEIVE_DATA);
+  
+    __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+  }
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	
+  HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
+    
+  if(GPIO_Pin == BUTTON_Pin){
+
+    LIS3MDL_StoreData_t message = LIS3MDL_storedata;
+
+    message.statusData = DATA_READ;
+    
+    portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
+    
+    xQueueSendToFrontFromISR(queueUsartSender, &message, &xHigherPriorityTaskWoken);
+  }
+  
+	HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
 
 /* USER CODE END 4 */
@@ -424,24 +473,31 @@ void measurementFunction(void const * argument)
 
 	lis3mdl_Init(&LIS3MDL_data, &hi2c1);
 
-	LIS3MDL_StoreData_t dataToSend;
-
 	while(1){
 
 		osDelay(1000);
 
-		LIS3MDL_data.uid++;
+		if(lis3mdl_DataReady(&LIS3MDL_data) == HAL_OK){
 
-		if(lis3mdl_DataReady(&LIS3MDL_data)){
+		  LIS3MDL_data.uid++;
 
 			lis3mdl_ReadMagnetometer(&LIS3MDL_data);
 
 			lis3mdl_ReadTemperature(&LIS3MDL_data);
 
-			dataToSend = lis3mdl_ConvertToStoreData(&LIS3MDL_data);
+			LIS3MDL_storedata = lis3mdl_ConvertToStoreData(&LIS3MDL_data);
 
-			xQueueSend(queueDataProcessing, &dataToSend, portMAX_DELAY);
+			LIS3MDL_storedata.statusData = SAVE_DATA;
+
+			xQueueSend(queueDataProcessing, &LIS3MDL_storedata, portMAX_DELAY);
 		}
+
+    else {
+
+			LIS3MDL_storedata.statusData = LIS3MDL_ERROR;
+
+			xQueueSend(queueUsartSender, &LIS3MDL_storedata, portMAX_DELAY);
+    }
 	}
   /* USER CODE END 5 */
 }
@@ -457,37 +513,64 @@ void recordingFunction(void const * argument)
 {
   /* USER CODE BEGIN recordingFunction */
 
-	w25q80dv_Init(&W25Q80DV_data, &hspi1, SPI1_NCS_Pin, SPI1_NCS_GPIO_Port);
-
-	// If there's no data save in the memory, we must do an erase to start using it.
-	if(w25q80dv_InitAddress(&W25Q80DV_data) == FALSE){
-
-		w25q80dv_EraseChip(&W25Q80DV_data);
-	}
-
 	LIS3MDL_StoreData_t message;
-
-	uint8_t* ptrMessage = (uint8_t*)&message;
 
 	while(1){
 
 		xQueueReceive(queueDataProcessing, &message, portMAX_DELAY);
 
-		if(message.readData == FALSE){
-			// Check the address
+		if(W25Q80DV_data.statusMemInit == TRUE){
 
-			// We must save the data in memory
-			w25q80dv_WriteBytes(&W25Q80DV_data, ptrMessage, sizeof(LIS3MDL_StoreData_t));
-			// Update the address
+			if(message.statusData == SAVE_DATA){
 
+				uint8_t splitData = 0;
+
+				if(w25q80dv_AddressToWrite(&W25Q80DV_data, (sizeof(LIS3MDL_StoreData_t) - 1), &splitData)){
+					// We must save the data in memory
+					w25q80dv_WriteBytesInSequence(&W25Q80DV_data, (uint8_t*)&message, (sizeof(LIS3MDL_StoreData_t) - 1));
+					// We save in the first bytes the last id save in memory, for the next power up
+					w25q80dv_WriteBytesInAddress(&W25Q80DV_data, INIT_DATA_ADDRESS, (uint8_t*)&message, INIT_DATA_SIZE);
+
+					message.statusData = DATA_SAVE;
+				}
+
+				else {
+					// There's no more space in memory, we must adopt a rule, overwrite data starting
+					// with the first page or send an alert.
+					message.statusData = MEMORY_FULL;
+					// Send the data to the sendingTask
+					xQueueSend(queueUsartSender, &message, portMAX_DELAY);
+				}
+			}
+
+			if(message.statusData == READ_DATA){
+				// First we must get the address of that data id
+				uint32_t addressAskID = message.uid*(sizeof(LIS3MDL_StoreData_t) - 1) + (INIT_DATA_ADDRESS + INIT_DATA_SIZE);
+
+				if(addressAskID > 0
+					&& addressAskID <= (W25Q80DV_LAST_ADDRESS - (sizeof(LIS3MDL_StoreData_t) - 1))
+					&& message.uid <= LIS3MDL_data.uid){
+					// We must read the data in memory of the address
+					w25q80dv_ReadBytesInAddress(&W25Q80DV_data, addressAskID, (uint8_t*)&message, (sizeof(LIS3MDL_StoreData_t) - 1));
+
+					message.statusData = DATA_READ;
+				}
+
+				else {
+					// The ID selected is wrong, send error message
+					message.statusData = WRONG_ID;
+				}
+				// Send the data to the sendingTask
+				xQueueSend(queueUsartSender, &message, portMAX_DELAY);
+			}
 		}
 
 		else {
-			// First we must get the address of that data id
 
-			// We must read the data in memory of the address
-			w25q80dv_ReadBytes(&W25Q80DV_data, ptrMessage, sizeof(LIS3MDL_StoreData_t));
-
+			// The memory is not operative
+			message.statusData = MEMORY_ERROR;
+			// Send the data to the sendingTask
+			xQueueSend(queueUsartSender, &message, portMAX_DELAY);
 		}
 	}
   /* USER CODE END recordingFunction */
@@ -504,13 +587,32 @@ void receptionFunction(void const * argument)
 {
   /* USER CODE BEGIN receptionFunction */
   /* Infinite loop */
+
+	LIS3MDL_StoreData_t message;
+
 	while(1){
-		osSemaphoreWait(binarySemaphoreUARTHandle, osWaitForever);
-		uint16_t measureAsk = 0;
-		if(DecodeReceivedData(&measureAsk)){
-			PrintString(huart1, "Hola mundo\r\n", sizeof("Hola mundo\r\n"));
-			PrintIntFormat(huart1, measureAsk);
+		
+    osSemaphoreWait(binarySemaphoreUARTHandle, osWaitForever);
+		
+    uint16_t measureAsk = 0;
+		
+    if(DecodeReceivedData(&measureAsk)){
+
+      message.uid = measureAsk;
+
+      message.statusData = READ_DATA;
+      
+      // Send the data to the sendingTask
+			xQueueSend(queueDataProcessing, &message, portMAX_DELAY);
 		}
+
+    else {
+
+      message.statusData = UNKNOWN_ERROR;
+      
+      // Send the data to the sendingTask
+			xQueueSend(queueUsartSender, &message, portMAX_DELAY);
+    }
 	}
   /* USER CODE END receptionFunction */
 }
@@ -526,8 +628,84 @@ void sendingFunction(void const * argument)
 {
   /* USER CODE BEGIN sendingFunction */
   /* Infinite loop */
+
+	LIS3MDL_StoreData_t message;
+
 	while(1){
-		osDelay(1);
+
+		xQueueReceive(queueUsartSender, &message, portMAX_DELAY);
+
+		switch(message.statusData){
+
+		  case MEMORY_FULL:
+
+			PrintString(huart1, "Error memory full", 17);
+
+		  break;
+
+		  case WRONG_ID:
+
+			PrintString(huart1, "Searching for the uid data: ", 28);
+
+			PrintIntFormat(huart1, message.uid);
+
+			PrintEnter(huart1);
+
+			PrintString(huart1, "Wrong ID", 8);
+
+		  break;
+
+		  case DATA_READ:
+
+			PrintString(huart1, "Searching for the uid data: ", 28);
+
+			PrintIntFormat(huart1, message.uid);
+
+			PrintEnter(huart1);
+
+			PrintString(huart1, "Data sensor -> x:", 15);
+
+			PrintFloat(huart1, message.mag_x, 4);
+
+			PrintString(huart1, " , y: ", 6);
+
+			PrintFloat(huart1, message.mag_y, 4);
+
+			PrintString(huart1, " , z: ", 6);
+
+			PrintFloat(huart1, message.mag_z, 4);
+
+			PrintString(huart1, " , temp: ", 9);
+
+			PrintFloat(huart1, message.temp, 4);
+
+		  break;
+
+		  case UNKNOWN_ERROR:
+
+			PrintString(huart1, "Unknown error detected", 21);
+
+		  break;
+
+		  case LIS3MDL_ERROR:
+
+			PrintString(huart1, "The sensor has an error", 23);
+
+		  break;
+
+		  case MEMORY_ERROR:
+
+			PrintString(huart1, "The memory has an error", 23);
+
+		  break;
+
+		  case DATA_SAVE:
+		  case NO_ERROR:
+		  case READ_DATA:
+		  case SAVE_DATA: break;
+		}
+
+		PrintEnter(huart1);
 	}
   /* USER CODE END sendingFunction */
 }

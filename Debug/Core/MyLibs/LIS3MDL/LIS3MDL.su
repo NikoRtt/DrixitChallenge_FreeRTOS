@@ -3,6 +3,6 @@
 ../Core/MyLibs/LIS3MDL/LIS3MDL.c:125:19:lis3mdl_ReadMagnetometer	32	static
 ../Core/MyLibs/LIS3MDL/LIS3MDL.c:179:19:lis3mdl_ReadTemperature	24	static
 ../Core/MyLibs/LIS3MDL/LIS3MDL.c:204:21:lis3mdl_ConvertToStoreData	48	static
-../Core/MyLibs/LIS3MDL/LIS3MDL.c:225:19:lis3mdl_ReadRegister	40	static
-../Core/MyLibs/LIS3MDL/LIS3MDL.c:232:19:lis3mdl_WriteRegister	40	static
-../Core/MyLibs/LIS3MDL/LIS3MDL.c:240:19:lis3mdl_ReadRegisters	40	static
+../Core/MyLibs/LIS3MDL/LIS3MDL.c:223:19:lis3mdl_ReadRegister	40	static
+../Core/MyLibs/LIS3MDL/LIS3MDL.c:230:19:lis3mdl_WriteRegister	40	static
+../Core/MyLibs/LIS3MDL/LIS3MDL.c:238:19:lis3mdl_ReadRegisters	40	static

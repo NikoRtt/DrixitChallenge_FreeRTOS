@@ -43,6 +43,10 @@ void PrintEnter ( UART_HandleTypeDef printer );
 
 void PrintIntFormat ( UART_HandleTypeDef printer, int16_t number );
 
+void PrintFloat( UART_HandleTypeDef printer, float number, uint8_t afterpoint );
+
+uint16_t floatToString( float number, char* String, uint8_t afterpoint );
+
 #endif
 
 /*****************************************************************************/

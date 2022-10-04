@@ -52,26 +52,29 @@ extern "C" {
 #define W25Q80DV_ENABLE_RST 		0x66	// enable software-reset ability
 #define W25Q80DV_RESET 				0x99	// make software reset
 
-#define W25Q80DV_ID				0x13
+#define W25Q80DV_ID					0x13
 #define W25Q80DV_DUMMY_BYTE 		0xAA
 #define W25Q80DV_STATUSREGISTER_1	0x01
 #define W25Q80DV_STATUSREGISTER_2	0x02
 #define W25Q80DV_WEL_BIT			0x01
-#define W25Q80DV_WEL_ENABLE		0x01
+#define W25Q80DV_WEL_ENABLE			0x01
 
 #define W25Q80DV_ERROR_BYTE 		0xFF
 
-#define W25Q80DV_PAGE_SIZE 		256
+#define W25Q80DV_PAGE_SIZE 			256
 #define W25Q80DV_SECTOR_SIZE 		4096
 #define W25Q80DV_SECTOR_COUNT		256
-#define W25Q80DV_PAGE_COUNT		4096
-#define W25Q80DV_BLOCK_SIZE		65536
+#define W25Q80DV_PAGE_COUNT			4096
+#define W25Q80DV_BLOCK_SIZE			65536
 #define W25Q80DV_BLOCK_COUNT		16
 #define W25Q80DV_KILOBYTE_SIZE		1024
 
 #define W25Q80DV_FIRST_PAGE_ADDRESS	0x000000
 #define W25Q80DV_LAST_PAGE_ADDRESS	0x0FFFF0
+#define W25Q80DV_LAST_ADDRESS		0x0FFFFF
 #define W25Q80DV_NO_PAGE			0xFFFF
+#define W25Q80DV_INITIALIZE_MEM		0xAAAAAAAA
+#define W25Q80DV_INITIALIZE_SIZE	4
 
 /*==================[typedef]================================================*/
 
@@ -81,11 +84,11 @@ typedef struct {
 	// Pin Configuration
 	uint16_t csPin;
 	GPIO_TypeDef* csPort;
-	// Block operation
-	bool_t block;
 	// Address operation
 	uint32_t lastAddress;
 	uint16_t lastPage;
+	// Status Memory
+	bool_t statusMemInit;
 } W25Q80DV_Data_t;
 
 /*==================[global variables]=======================================*/
@@ -94,19 +97,23 @@ typedef struct {
 
 /*==================[external functions declaration]=========================*/
 
-//Initialization functions definition
+//Initialization functions declaration
 
-uint8_t w25q80dv_Init( W25Q80DV_Data_t* dev, SPI_HandleTypeDef* spi, uint16_t pin, GPIO_TypeDef* port );
+bool_t w25q80dv_Init( W25Q80DV_Data_t* dev, SPI_HandleTypeDef* spi, uint16_t pin, GPIO_TypeDef* port );
 
-bool_t w25q80dv_InitAddress( W25Q80DV_Data_t* dev );
+bool_t w25q80dv_isMemInit( W25Q80DV_Data_t* dev );
 
-//Basic functions definition
+//Basic functions declaration
 
 void w25q80dv_EraseChip( W25Q80DV_Data_t* dev );
 
-void w25q80dv_WriteBytes( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght );
+bool_t w25q80dv_WriteBytesInSequence( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght );
 
-void w25q80dv_ReadBytes( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght );
+void w25q80dv_WriteBytesInAddress( W25Q80DV_Data_t* dev, uint32_t address, uint8_t* data, uint8_t dataLenght );
+
+void w25q80dv_ReadBytesInSequence( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght );
+
+void w25q80dv_ReadBytesInAddress( W25Q80DV_Data_t* dev, uint32_t address, uint8_t* data, uint8_t dataLenght );
 
 bool_t w25q80dv_AddressToWrite( W25Q80DV_Data_t* dev, uint8_t dataLenght, uint8_t* splitDataLenght );
 

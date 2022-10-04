@@ -21,10 +21,6 @@ static uint8_t BufferUsart1[UART_MAX_RECEIVE_DATA], Escritura_BufferUsart1 = 0, 
 
 /*==================[internal functions definition]==========================*/
 
-/*************************************************************/
-//-Store in a buffer all the receive data (circular buffer)
-/*************************************************************/
-
 bool_t StoreUSARTData(uint8_t* data, uint16_t size){
 
 	bool_t retVal = FALSE;
@@ -59,8 +55,6 @@ bool_t StoreUSARTData(uint8_t* data, uint16_t size){
 	return retVal;
 }
 
-/*************************************************************/
-//-Decode the data received from uart
 /*************************************************************/
 
 bool_t DecodeReceivedData( uint16_t* NumberReceived ){
@@ -109,8 +103,6 @@ bool_t DecodeReceivedData( uint16_t* NumberReceived ){
 }
 
 /*************************************************************/
-//-Prints string
-/*************************************************************/
 
 void PrintString( UART_HandleTypeDef printer, char* string, uint16_t size ){
 
@@ -118,16 +110,12 @@ void PrintString( UART_HandleTypeDef printer, char* string, uint16_t size ){
 }
 
 /*************************************************************/
-//-Prints enter
-/*************************************************************/
 
 void PrintEnter( UART_HandleTypeDef printer ){
 
     PrintString( printer, PRINT_ENTER_STRING, sizeof(PRINT_ENTER_STRING) );
 }
 
-/*************************************************************/
-//-Prints integer
 /*************************************************************/
 
 void PrintIntFormat( UART_HandleTypeDef printer, int16_t number ){
@@ -139,6 +127,76 @@ void PrintIntFormat( UART_HandleTypeDef printer, int16_t number ){
 	itoa(number, DataNumber, 10);
 
 	PrintString( printer, DataNumber, sizeof(DataNumber) );
+}
+
+/*************************************************************/
+
+void PrintFloat( UART_HandleTypeDef printer, float number, uint8_t afterpoint ){
+
+    char strNumber[65];
+
+    uint16_t sizeStrNumber = floatToString( number, strNumber, afterpoint);
+
+    PrintString( printer, strNumber, sizeStrNumber);
+}
+
+/*************************************************************/
+
+uint16_t floatToString( float number, char* String, uint8_t afterpoint ){
+
+    char strNumber[65];
+
+    uint8_t point = 0;
+
+    int32_t ipart = (int32_t)number; // Extract integer part
+
+    itoa(ipart, strNumber, 10); // convert integer part to string
+
+    int32_t aux = ipart;
+
+    if(afterpoint > 0){
+
+    	if(aux < 0){ point++; } //Sumo un lugar para que entre el menos en el string
+
+        while(aux != 0){
+
+            aux = aux/10;
+
+            point++;
+        }
+
+        if(point > 0){
+
+            strNumber[point] = '.';  // add dot
+
+            float fpart = number - (float)ipart; // Extract floating part
+
+            if(fpart < 0){fpart = fpart*(-1); }
+
+            aux = 0;
+
+            ipart = (int32_t)(fpart*10);
+
+            if(ipart == 0){  point++; strNumber[point] = '0'; } // Si el primer decimal despues de la coma es 0 lo cargo a mano.
+
+            while(aux != afterpoint){
+
+                fpart = fpart*10;
+
+                aux++;
+            }
+
+            char * pointer;
+
+            pointer = strNumber;
+
+            itoa(fpart, (pointer + point + 1), 10); // convert integer part to string
+        }
+    }
+
+    memcpy(String, strNumber, (point + 1 + aux + 1)); //enteros + punto + decimales + fin de string
+
+    return (point + 1 + aux + 1);//enteros + punto + decimales + fin de string
 }
 
 /*==================[end of file]============================================*/

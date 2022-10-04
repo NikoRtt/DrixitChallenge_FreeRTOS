@@ -121,7 +121,7 @@ typedef struct {
 	// Temperature data in degrees Celsius
 	float temp;
 	// If we must read or save the data
-	bool_t readData;
+	errorCodes_t statusData;
 } LIS3MDL_StoreData_t;
 
 /*==================[global variables]=======================================*/

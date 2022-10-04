@@ -17,13 +17,13 @@
 
 /*==================[internal functions declaration]=========================*/
 
-// low level functions definition
+// low level functions declaration
 
-HAL_StatusTypeDef w25q80dv_Read( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght, uint8_t* value, uint8_t valueLenght );
+HAL_StatusTypeDef w25q80dv_SPIRead( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght, uint8_t* value, uint8_t valueLenght );
 
-HAL_StatusTypeDef w25q80dv_Write( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght );
+HAL_StatusTypeDef w25q80dv_SPIWrite( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght );
 
-// Instruction functions definition
+// Instruction functions declaration
 
 bool_t w25q80dv_InstructionReadID( W25Q80DV_Data_t* dev );
 
@@ -35,11 +35,15 @@ uint8_t w25q80dv_InstructionReadStatusRegister( W25Q80DV_Data_t* dev, uint8_t se
 
 void w25q80dv_InstructionWaitForWriteEnd( W25Q80DV_Data_t* dev );
 
+// Basics functions declaration
+
+void w25q80dv_WriteBytesInPage( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght );
+
 /*==================[internal functions definition]==========================*/
 
 /*==================[low level functions definition]=========================*/
 
-HAL_StatusTypeDef w25q80dv_Read( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght, uint8_t* value, uint8_t valueLenght ){
+HAL_StatusTypeDef w25q80dv_SPIRead( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght, uint8_t* value, uint8_t valueLenght ){
 
 	uint8_t retVal;
 
@@ -56,7 +60,7 @@ HAL_StatusTypeDef w25q80dv_Read( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t da
 
 /*************************************************************/
 
-HAL_StatusTypeDef w25q80dv_Write( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght ){
+HAL_StatusTypeDef w25q80dv_SPIWrite( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght ){
 
 	uint8_t retVal;
 
@@ -79,7 +83,7 @@ bool_t w25q80dv_InstructionReadID( W25Q80DV_Data_t* dev ){
 
 	bool_t retVal = FALSE;
 
-	if(w25q80dv_Read(dev, instruction, 4, &devID, 1) == HAL_OK){
+	if(w25q80dv_SPIRead(dev, instruction, 4, &devID, 1) == HAL_OK){
 
 		if(devID == W25Q80DV_ID){
 
@@ -96,7 +100,7 @@ HAL_StatusTypeDef w25q80dv_InstructionWriteEnable( W25Q80DV_Data_t* dev ){
 
 	uint8_t instruction = W25Q80DV_WRITE_ENABLE;
 
-	return w25q80dv_Write(dev, &instruction, 1);
+	return w25q80dv_SPIWrite(dev, &instruction, 1);
 }
 
 /*************************************************************/
@@ -105,7 +109,7 @@ HAL_StatusTypeDef w25q80dv_InstructionWriteDisable( W25Q80DV_Data_t* dev ){
 
 	uint8_t instruction = W25Q80DV_WRITE_DISABLE;
 
-	return w25q80dv_Write(dev, &instruction, 1);
+	return w25q80dv_SPIWrite(dev, &instruction, 1);
 }
 
 /*************************************************************/
@@ -120,14 +124,14 @@ uint8_t w25q80dv_InstructionReadStatusRegister( W25Q80DV_Data_t* dev, uint8_t se
 
 		instruction = W25Q80DV_READ_SR1;
 
-		w25q80dv_Read(dev, &instruction, 1, &statusRegister, 1);
+		w25q80dv_SPIRead(dev, &instruction, 1, &statusRegister, 1);
 	}
 
 	else if (selectRegister == 2){
 
 		instruction = W25Q80DV_READ_SR2;
 
-		w25q80dv_Read(dev, &instruction, 1, &statusRegister, 1);
+		w25q80dv_SPIRead(dev, &instruction, 1, &statusRegister, 1);
 	}
 
 	return statusRegister;
@@ -142,16 +146,14 @@ void w25q80dv_InstructionWaitForWriteEnd( W25Q80DV_Data_t* dev ){
 	do{
 		statusRegister1 = w25q80dv_InstructionReadStatusRegister(dev, W25Q80DV_READ_SR1);
 
-		osDelay(1);
+		HAL_Delay(1);
 
 	} while ((statusRegister1 & W25Q80DV_WEL_BIT) == W25Q80DV_WEL_ENABLE);
 }
 
 /*==================[Initialization functions definition]====================*/
 
-uint8_t w25q80dv_Init( W25Q80DV_Data_t* dev, SPI_HandleTypeDef* spi, uint16_t pin, GPIO_TypeDef* port ){
-
-	dev->block = TRUE;
+bool_t w25q80dv_Init( W25Q80DV_Data_t* dev, SPI_HandleTypeDef* spi, uint16_t pin, GPIO_TypeDef* port ){
 
 	dev->W25Q80DV_SPI = spi;
 
@@ -163,63 +165,42 @@ uint8_t w25q80dv_Init( W25Q80DV_Data_t* dev, SPI_HandleTypeDef* spi, uint16_t pi
 
 	dev->lastAddress = W25Q80DV_FIRST_PAGE_ADDRESS;
 
+	dev->statusMemInit = FALSE;
+
 	// We make sure that the memory start properly
 
 	uint8_t instruction = W25Q80DV_RELEASE_PD;
 
-	w25q80dv_Write(dev, &instruction, 1);
-
-	osDelay(100);
+	w25q80dv_SPIWrite(dev, &instruction, 1);
 
 	// Check the flash memory
 
-	bool_t retVal = FALSE;
-
 	if(w25q80dv_InstructionReadID(dev)){
 
-		retVal = TRUE;
+		dev->statusMemInit = TRUE;
 	}
 
-	dev->block = FALSE;
-
-	return retVal;
+	return dev->statusMemInit;
 }
 
 /*************************************************************/
 
-bool_t w25q80dv_InitAddress( W25Q80DV_Data_t* dev ){
+bool_t w25q80dv_isMemInit( W25Q80DV_Data_t* dev ){
 
-	dev->block = TRUE;
+	uint8_t data[W25Q80DV_INITIALIZE_SIZE];
 
-	// We read the first 6 bytes of the memory where the data of last address
-	// and page are store, to know if the memory was used or not.
+	w25q80dv_ReadBytesInAddress(dev, W25Q80DV_FIRST_PAGE_ADDRESS, data, W25Q80DV_INITIALIZE_SIZE);
 
-	dev->lastPage = 0;
-
-	dev->lastAddress = W25Q80DV_FIRST_PAGE_ADDRESS;
-
-	uint8_t data[6];
-
-	w25q80dv_ReadBytes(dev, data, 6);
-
-	// Check the data in memory
+	// Check the data of initialization in memory
 
 	bool_t retVal = FALSE;
 
-	uint32_t _lastAddress = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+	uint32_t resultValue = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
 
-	uint16_t _lastPage = (data[4] << 8) | data[5];
-
-	if(_lastPage != W25Q80DV_NO_PAGE){
+	if(resultValue == W25Q80DV_INITIALIZE_MEM){
 
 		retVal = TRUE;
-
-		dev->lastAddress = _lastAddress;
-
-		dev->lastPage = _lastPage;
 	}
-
-	dev->block = FALSE;
 
 	return retVal;
 }
@@ -228,36 +209,20 @@ bool_t w25q80dv_InitAddress( W25Q80DV_Data_t* dev ){
 
 void w25q80dv_EraseChip( W25Q80DV_Data_t* dev ){
 
-	while (dev->block == TRUE){
-
-		osDelay(1);
-	}
-
-	dev->block = TRUE;
-
 	w25q80dv_InstructionWaitForWriteEnd(dev);
 
 	w25q80dv_InstructionWriteEnable(dev);
 
 	uint8_t instruction = W25Q80DV_CHIP_ERASE;
 
-	w25q80dv_Write(dev, &instruction, 1);
+	w25q80dv_SPIWrite(dev, &instruction, 1);
 
 	w25q80dv_InstructionWaitForWriteEnd(dev);
-
-	dev->block = FALSE;
 }
 
 /*************************************************************/
 
-void w25q80dv_WriteBytes( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght ){
-
-	while (dev->block == TRUE){
-
-		osDelay(1);
-	}
-
-	dev->block = TRUE;
+void w25q80dv_WriteBytesInPage( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght ){
 
 	w25q80dv_InstructionWaitForWriteEnd(dev);
 
@@ -275,23 +240,76 @@ void w25q80dv_WriteBytes( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLengh
 
 	memcpy((instruction + 4), data, dataLenght);
 
-	w25q80dv_Write(dev, instruction, 4 + dataLenght);
+	w25q80dv_SPIWrite(dev, instruction, 4 + dataLenght);
 
 	w25q80dv_InstructionWaitForWriteEnd(dev);
 
-	dev->block = FALSE;
+	// Maximum time to write a page
+	HAL_Delay(3);
+
+	dev->lastAddress = dev->lastAddress + dataLenght;
 }
 
 /*************************************************************/
 
-void w25q80dv_ReadBytes( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght ){
+bool_t w25q80dv_WriteBytesInSequence( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght ){
 
-	while (dev->block == TRUE){
+	bool_t retVal = FALSE;
 
-		osDelay(1);
+	uint8_t splitData;
+
+	if(w25q80dv_AddressToWrite(dev, dataLenght, splitData)){
+
+		retVal = TRUE;
+
+		if(splitData == 0){
+
+			w25q80dv_WriteBytesInPage(dev, data, dataLenght);
+		}
+
+		else {
+
+			dev->lastPage++;
+
+			w25q80dv_WriteBytesInPage(dev, data, (dataLenght - splitData));
+
+			w25q80dv_WriteBytesInPage(dev, data[dataLenght - splitData], splitData);
+		}
+
+		w25q80dv_InstructionWaitForWriteEnd(dev);
 	}
 
-	dev->block = TRUE;
+	return retVal;
+}
+
+/*************************************************************/
+
+void w25q80dv_WriteBytesInAddress( W25Q80DV_Data_t* dev, uint32_t address, uint8_t* data, uint8_t dataLenght ){
+
+	w25q80dv_InstructionWaitForWriteEnd(dev);
+
+	w25q80dv_InstructionWriteEnable(dev);
+
+	uint8_t instruction[4 + W25Q80DV_PAGE_SIZE]; // Instruction + 3 byte Address + Data
+
+	instruction[0] = W25Q80DV_PAGE_PROGRAM;
+
+	instruction[1] = (address & 0xFF0000) >> 16;
+
+	instruction[2] = (address & 0xFF00) >> 8;
+
+	instruction[3] = (address & 0xFF);
+
+	memcpy((instruction + 4), data, dataLenght);
+
+	w25q80dv_SPIWrite(dev, instruction, 4 + dataLenght);
+
+	w25q80dv_InstructionWaitForWriteEnd(dev);
+}
+
+/*************************************************************/
+
+void w25q80dv_ReadBytesInSequence( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght ){
 
 	uint8_t instruction[4]; // Instruction + 3 byte Address
 
@@ -303,9 +321,24 @@ void w25q80dv_ReadBytes( W25Q80DV_Data_t* dev, uint8_t* data, uint8_t dataLenght
 
 	instruction[3] = (dev->lastAddress & 0xFF);
 
-	w25q80dv_Read(dev, instruction, 4, data, dataLenght);
+	w25q80dv_SPIRead(dev, instruction, 4, data, dataLenght);
+}
 
-	dev->block = FALSE;
+/*************************************************************/
+
+void w25q80dv_ReadBytesInAddress( W25Q80DV_Data_t* dev, uint32_t address, uint8_t* data, uint8_t dataLenght ){
+
+	uint8_t instruction[4]; // Instruction + 3 byte Address
+
+	instruction[0] = W25Q80DV_READ_DATA;
+
+	instruction[1] = (address & 0xFF0000) >> 16;
+
+	instruction[2] = (address & 0xFF00) >> 8;
+
+	instruction[3] = (address & 0xFF);
+
+	w25q80dv_SPIRead(dev, instruction, 4, data, dataLenght);
 }
 
 /*************************************************************/
