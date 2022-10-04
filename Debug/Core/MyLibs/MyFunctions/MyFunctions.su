@@ -1,7 +1,0 @@
-../Core/MyLibs/MyFunctions/MyFunctions.c:24:8:StoreUSARTData	24	static
-../Core/MyLibs/MyFunctions/MyFunctions.c:60:8:DecodeReceivedData	48	static
-../Core/MyLibs/MyFunctions/MyFunctions.c:107:6:PrintString	8	static
-../Core/MyLibs/MyFunctions/MyFunctions.c:114:6:PrintEnter	80	static
-../Core/MyLibs/MyFunctions/MyFunctions.c:121:6:PrintIntFormat	96	static
-../Core/MyLibs/MyFunctions/MyFunctions.c:134:6:PrintFloat	152	static
-../Core/MyLibs/MyFunctions/MyFunctions.c:145:10:floatToString	112	static
