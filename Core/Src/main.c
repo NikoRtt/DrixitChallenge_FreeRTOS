@@ -20,10 +20,10 @@ SPI_HandleTypeDef hspi1;
 UART_HandleTypeDef huart1;
 DMA_HandleTypeDef hdma_usart1_rx;
 
-osThreadId measurementTaskHandle;
-osThreadId recordingTaskHandle;
-osThreadId receptionTaskHandle;
-osThreadId sendingTaskHandle;
+osThreadId sensorTaskHandle;
+osThreadId memoryTaskHandle;
+osThreadId receiveTaskHandle;
+osThreadId sendTaskHandle;
 
 osSemaphoreId binarySemaphoreUARTHandle;
 
@@ -102,15 +102,14 @@ int main(void){
 	queueUsartSender = xQueueCreate(16, sizeof(LIS3MDL_StoreData_t));
 	
 	/* Create the thread(s) */
-	/* definition and creation of measurementTask */
-	osThreadDef(measurementTask, measurementFunction, osPriorityNormal, 0, 128);
-	measurementTaskHandle = osThreadCreate(osThread(measurementTask), NULL);
-	osThreadDef(recordingTask, recordingFunction, osPriorityNormal, 0, 128);
-	recordingTaskHandle = osThreadCreate(osThread(recordingTask), NULL);
-	osThreadDef(receptionTask, receptionFunction, osPriorityNormal, 0, 128);
-	receptionTaskHandle = osThreadCreate(osThread(receptionTask), NULL);
-	osThreadDef(sendingTask, sendingFunction, osPriorityNormal, 0, 128);
-	sendingTaskHandle = osThreadCreate(osThread(sendingTask), NULL);
+	osThreadDef(sensorTask, measurementFunction, osPriorityNormal, 0, 128);
+	sensorTaskHandle = osThreadCreate(osThread(sensorTask), NULL);
+	osThreadDef(memoryTask, recordingFunction, osPriorityNormal, 0, 128);
+	memoryTaskHandle = osThreadCreate(osThread(memoryTask), NULL);
+	osThreadDef(receiveTask, receptionFunction, osPriorityNormal, 0, 128);
+	receiveTaskHandle = osThreadCreate(osThread(receiveTask), NULL);
+	osThreadDef(sendTask, sendingFunction, osPriorityNormal, 0, 128);
+	sendTaskHandle = osThreadCreate(osThread(sendTask), NULL);
 
 	PrintString(huart1, "Starting FreeRTOS System\r\n", sizeof("Starting FreeRTOS System\r\n"));
 
@@ -317,7 +316,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 }
 
 /**
-  * @brief  Function implementing the measurementTask thread.
+  * @brief  Function implementing the sensorTask thread.
   * @param  argument: Not used
   * @retval None
   */
@@ -356,7 +355,7 @@ void measurementFunction(void const * argument){
 }
 
 /**
-* @brief Function implementing the recordingTask thread.
+* @brief Function implementing the memoryTask thread.
 * @param argument: Not used
 * @retval None
 */
@@ -387,7 +386,7 @@ void recordingFunction(void const * argument){
 					// There's no more space in memory, we must adopt a rule, overwrite data starting
 					// with the first page or send an alert.
 					message.statusData = MEMORY_FULL;
-					// Send the data to the sendingTask
+					// Send the data to the sendTask
 					xQueueSend(queueUsartSender, &message, portMAX_DELAY);
 				}
 			}
@@ -409,7 +408,7 @@ void recordingFunction(void const * argument){
 					// The ID selected is wrong, send error message
 					message.statusData = WRONG_ID;
 				}
-				// Send the data to the sendingTask
+				// Send the data to the sendTask
 				xQueueSend(queueUsartSender, &message, portMAX_DELAY);
 			}
 		}
@@ -418,14 +417,14 @@ void recordingFunction(void const * argument){
 
 			// The memory is not operative
 			message.statusData = MEMORY_ERROR;
-			// Send the data to the sendingTask
+			// Send the data to the sendTask
 			xQueueSend(queueUsartSender, &message, portMAX_DELAY);
 		}
 	}
 }
 
 /**
-* @brief Function implementing the receptionTask thread.
+* @brief Function implementing the receiveTask thread.
 * @param argument: Not used
 * @retval None
 */
@@ -444,21 +443,21 @@ void receptionFunction(void const * argument){
 			message.uid = measureAsk;
 
 			message.statusData = READ_DATA;
-			// Send the data to the sendingTask
+			// Send the data to the sendTask
 			xQueueSend(queueDataProcessing, &message, portMAX_DELAY);
 		}
 
 		else {
 
 			message.statusData = UNKNOWN_ERROR;
-			// Send the data to the sendingTask
+			// Send the data to the sendTask
 			xQueueSend(queueUsartSender, &message, portMAX_DELAY);
 		}
 	}
 }
 
 /**
-* @brief Function implementing the sendingTask thread.
+* @brief Function implementing the sendTask thread.
 * @param argument: Not used
 * @retval None
 */
@@ -474,29 +473,17 @@ void sendingFunction(void const * argument){
 
 			case MEMORY_FULL:
 
-				PrintString(huart1, "Error memory full", 17);
+				PrintString(huart1, "Memory full", 11);
 
 			break;
 
 			case WRONG_ID:
-
-				PrintString(huart1, "Searching for the uid data: ", 28);
-
-				PrintIntFormat(huart1, message.uid);
-
-				PrintEnter(huart1);
 
 				PrintString(huart1, "Wrong ID", 8);
 
 			break;
 
 			case DATA_READ:
-
-				PrintString(huart1, "Searching for the uid data: ", 28);
-
-				PrintIntFormat(huart1, message.uid);
-
-				PrintEnter(huart1);
 
 				PrintString(huart1, "Data sensor -> x:", 15);
 
@@ -518,19 +505,19 @@ void sendingFunction(void const * argument){
 
 			case UNKNOWN_ERROR:
 
-				PrintString(huart1, "Unknown error detected", 21);
+				PrintString(huart1, "Unknown error", 13);
 
 			break;
 
 			case LIS3MDL_ERROR:
 
-				PrintString(huart1, "The sensor has an error", 23);
+				PrintString(huart1, "Lis3mdl error", 13);
 
 			break;
 
 			case MEMORY_ERROR:
 
-				PrintString(huart1, "The memory has an error", 23);
+				PrintString(huart1, "Memory error", 12);
 
 			break;
 
